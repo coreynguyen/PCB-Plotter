@@ -1,0 +1,3 @@
+Dear ImGui v1.91.5-docking (ocornut/imgui tag v1.91.5-docking, commit 368123a), vendored 2026-10.
+Files: core + win32 backend. Local patch (R11): imgui.cpp ItemHoverable() calls the optional hook GImGuiIdProbe(id, bb) so PCB Plotter can
+report every ID conflict in a frame without hovering (PCBP_IDCHECK, tests/idwalk.sh). No other changes.

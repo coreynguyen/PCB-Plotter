@@ -1,0 +1,4 @@
+Bauteil;X (mm);Y (mm);Drehung;Seite;Gehäuse
+R1;12,5;3,25;90;Oben;0805
+R2;15,75;3,25;0;Unten;0805
+C1;20;10,5;180;Oben;0603

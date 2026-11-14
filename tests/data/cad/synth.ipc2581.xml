@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- synthetic sample for PCB Plotter tests -->
+<IPC-2581 revision="B" xmlns="http://webstds.ipc.org/2581" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Content roleRef="Owner">
+    <FunctionMode mode="ASSEMBLY"/>
+    <StepRef name="board"/>
+    <LayerRef name="TOP"/>
+    <LayerRef name="BOTTOM"/>
+    <BomRef name="synth_bom"/>
+    <DictionaryStandard units="MILLIMETER">
+    <EntryStandard id="RECT_1x1.3"><RectCenter width="1" height="1.3"/></EntryStandard>
+    <EntryStandard id="RECT_1.5x0.6"><RectCenter width="1.5" height="0.6"/></EntryStandard>
+    <EntryStandard id="SQUARE_1.7x1.7"><RectCenter width="1.7" height="1.7"/></EntryStandard>
+    <EntryStandard id="ROUND_1.7x1.7"><Circle diameter="1.7"/></EntryStandard>
+    <EntryStandard id="ROUND_1x1"><Circle diameter="1"/></EntryStandard>
+    </DictionaryStandard>
+  </Content>
+  <LogisticHeader><Role id="Owner" roleFunction="SENDER"/><Enterprise id="PCBP" code="NONE"/><Person name="test" enterpriseRef="PCBP" roleRef="Owner"/></LogisticHeader>
+  <Bom name="synth_bom">
+    <BomHeader assembly="synth" revision="1"><StepRef name="board"/></BomHeader>
+    <BomItem OEMDesignNumberRef="RC0805-10K" quantity="2" category="ELECTRICAL">
+      <RefDes name="R1" packageRef="R0805" populate="true" layerRef="TOP"/>
+      <RefDes name="R2" packageRef="R0805" populate="true" layerRef="BOTTOM"/>
+      <Characteristics category="ELECTRICAL"><Textual definitionSource="SUPPLIER" textualCharacteristicName="VALUE" textualCharacteristicValue="10k"/></Characteristics>
+    </BomItem>
+    <BomItem OEMDesignNumberRef="CC0805-100N" quantity="1" category="ELECTRICAL">
+      <RefDes name="C1" packageRef="R0805" populate="true" layerRef="TOP"/>
+      <Characteristics category="ELECTRICAL"><Textual definitionSource="SUPPLIER" textualCharacteristicName="VALUE" textualCharacteristicValue="100nF"/></Characteristics>
+    </BomItem>
+    <BomItem OEMDesignNumberRef="LM358" quantity="1" category="ELECTRICAL">
+      <RefDes name="U1" packageRef="SOIC8" populate="true" layerRef="BOTTOM"/>
+      <Characteristics category="ELECTRICAL"><Textual definitionSource="SUPPLIER" textualCharacteristicName="VALUE" textualCharacteristicValue="LM358"/></Characteristics>
+    </BomItem>
+    <BomItem OEMDesignNumberRef="HDR-1X3" quantity="1" category="ELECTRICAL">
+      <RefDes name="J1" packageRef="HDR3" populate="true" layerRef="TOP"/>
+      <Characteristics category="ELECTRICAL"><Textual definitionSource="SUPPLIER" textualCharacteristicName="VALUE" textualCharacteristicValue="HDR"/></Characteristics>
+    </BomItem>
+  </Bom>
+  <Ecad name="synth">
+    <CadHeader units="MILLIMETER"><Spec name="default"/></CadHeader>
+    <CadData>
+      <Layer name="TOP" layerFunction="CONDUCTOR" side="TOP" polarity="POSITIVE"/>
+      <Layer name="BOTTOM" layerFunction="CONDUCTOR" side="BOTTOM" polarity="POSITIVE"/>
+      <Layer name="DRILL_1_2" layerFunction="DRILL" side="ALL" polarity="POSITIVE"/>
+      <Step name="board">
+      <Datum x="0" y="0"/>
+      <Profile><Polygon><PolyBegin x="0" y="0"/><PolyStepSegment x="50" y="0"/><PolyStepSegment x="50" y="35"/><PolyStepCurve x="45" y="40" centerX="45" centerY="35" clockwise="false"/><PolyStepSegment x="0" y="40"/><PolyStepSegment x="0" y="0"/></Polygon></Profile>
+      <Package name="R0805" type="OTHER" pinOne="1" height="1.0">
+        <Outline><Polygon><PolyBegin x="-1" y="-1"/><PolyStepSegment x="1" y="-1"/><PolyStepSegment x="1" y="1"/><PolyStepSegment x="-1" y="1"/><PolyStepSegment x="-1" y="-1"/></Polygon><LineDesc lineWidth="0.1"/></Outline>
+        <Pin number="1" type="SURFACE" electricalType="ELECTRICAL"><Location x="-0.95" y="0"/><StandardPrimitiveRef id="RECT_1x1.3"/></Pin>
+        <Pin number="2" type="SURFACE" electricalType="ELECTRICAL"><Location x="0.95" y="0"/><StandardPrimitiveRef id="RECT_1x1.3"/></Pin>
+      </Package>
+      <Package name="SOIC8" type="OTHER" pinOne="1" height="1.0">
+        <Outline><Polygon><PolyBegin x="-1" y="-1"/><PolyStepSegment x="1" y="-1"/><PolyStepSegment x="1" y="1"/><PolyStepSegment x="-1" y="1"/><PolyStepSegment x="-1" y="-1"/></Polygon><LineDesc lineWidth="0.1"/></Outline>
+        <Pin number="1" type="SURFACE" electricalType="ELECTRICAL"><Location x="-2.7" y="1.905"/><StandardPrimitiveRef id="RECT_1.5x0.6"/></Pin>
+        <Pin number="2" type="SURFACE" electricalType="ELECTRICAL"><Location x="-2.7" y="0.635"/><StandardPrimitiveRef id="RECT_1.5x0.6"/></Pin>
+        <Pin number="3" type="SURFACE" electricalType="ELECTRICAL"><Location x="-2.7" y="-0.635"/><StandardPrimitiveRef id="RECT_1.5x0.6"/></Pin>
+        <Pin number="4" type="SURFACE" electricalType="ELECTRICAL"><Location x="-2.7" y="-1.905"/><StandardPrimitiveRef id="RECT_1.5x0.6"/></Pin>
+        <Pin number="5" type="SURFACE" electricalType="ELECTRICAL"><Location x="2.7" y="-1.905"/><StandardPrimitiveRef id="RECT_1.5x0.6"/></Pin>
+        <Pin number="6" type="SURFACE" electricalType="ELECTRICAL"><Location x="2.7" y="-0.635"/><StandardPrimitiveRef id="RECT_1.5x0.6"/></Pin>
+        <Pin number="7" type="SURFACE" electricalType="ELECTRICAL"><Location x="2.7" y="0.635"/><StandardPrimitiveRef id="RECT_1.5x0.6"/></Pin>
+        <Pin number="8" type="SURFACE" electricalType="ELECTRICAL"><Location x="2.7" y="1.905"/><StandardPrimitiveRef id="RECT_1.5x0.6"/></Pin>
+      </Package>
+      <Package name="HDR3" type="OTHER" pinOne="1" height="1.0">
+        <Outline><Polygon><PolyBegin x="-1" y="-1"/><PolyStepSegment x="1" y="-1"/><PolyStepSegment x="1" y="1"/><PolyStepSegment x="-1" y="1"/><PolyStepSegment x="-1" y="-1"/></Polygon><LineDesc lineWidth="0.1"/></Outline>
+        <Pin number="1" type="THRU" electricalType="ELECTRICAL"><Location x="-2.54" y="0"/><StandardPrimitiveRef id="SQUARE_1.7x1.7"/></Pin>
+        <Pin number="2" type="THRU" electricalType="ELECTRICAL"><Location x="0" y="0"/><StandardPrimitiveRef id="ROUND_1.7x1.7"/></Pin>
+        <Pin number="3" type="THRU" electricalType="ELECTRICAL"><Location x="2.54" y="0"/><StandardPrimitiveRef id="ROUND_1.7x1.7"/></Pin>
+      </Package>
+      <Package name="FID1MM" type="OTHER" pinOne="1" height="1.0">
+        <Outline><Polygon><PolyBegin x="-1" y="-1"/><PolyStepSegment x="1" y="-1"/><PolyStepSegment x="1" y="1"/><PolyStepSegment x="-1" y="1"/><PolyStepSegment x="-1" y="-1"/></Polygon><LineDesc lineWidth="0.1"/></Outline>
+        <Pin number="1" type="SURFACE" electricalType="ELECTRICAL"><Location x="0" y="0"/><StandardPrimitiveRef id="ROUND_1x1"/></Pin>
+      </Package>
+      <Component refDes="R1" packageRef="R0805" layerRef="TOP" part="RC0805-10K" mountType="SMT"><Xform rotation="0"/><Location x="10" y="10"/></Component>
+      <Component refDes="C1" packageRef="R0805" layerRef="TOP" part="CC0805-100N" mountType="SMT"><Xform rotation="90"/><Location x="20" y="10"/></Component>
+      <Component refDes="R2" packageRef="R0805" layerRef="BOTTOM" part="RC0805-10K" mountType="SMT"><Xform rotation="180" mirror="true"/><Location x="40" y="10"/></Component>
+      <Component refDes="U1" packageRef="SOIC8" layerRef="BOTTOM" part="LM358" mountType="SMT"><Xform rotation="90" mirror="true"/><Location x="30" y="22"/></Component>
+      <Component refDes="J1" packageRef="HDR3" layerRef="TOP" part="HDR-1X3" mountType="THMT"><Xform rotation="270"/><Location x="12" y="30"/></Component>
+      <Component refDes="FID1" packageRef="FID1MM" layerRef="TOP" part="" mountType="SMT"><Xform rotation="0"/><Location x="5" y="5"/></Component>
+      <LayerFeature layerRef="DRILL_1_2">
+        <Set>
+          <Hole name="H14" diameter="1" platingStatus="PLATED" plusTol="0" minusTol="0" x="12" y="32.54"/>
+          <Hole name="H15" diameter="1" platingStatus="PLATED" plusTol="0" minusTol="0" x="12" y="30"/>
+          <Hole name="H16" diameter="1" platingStatus="PLATED" plusTol="0" minusTol="0" x="12" y="27.46"/>
+        </Set>
+      </LayerFeature>
+      </Step>
+    </CadData>
+  </Ecad>
+</IPC-2581>

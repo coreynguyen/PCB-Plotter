@@ -1,0 +1,10 @@
+Altium Designer Pick and Place Locations
+C:\proj\board.PcbDoc
+
+========
+Units used:            mm
+
+"Designator","Comment","Layer","Footprint","Center-X(mm)","Center-Y(mm)","Rotation","Description"
+"R1","10k","TopLayer","0603","10.160","20.320","90","Res"
+"R2","10k","BottomLayer","0603","15.000","20.320","270","Res"
+"U1","STM32","TopLayer","LQFP48","30.500","25.000","0","MCU"

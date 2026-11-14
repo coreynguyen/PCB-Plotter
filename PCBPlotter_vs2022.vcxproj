@@ -1,0 +1,386 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{6C1E5A3B-8F2D-4B7A-9E41-2D5C7A1B9F01}</ProjectGuid>
+    <RootNamespace>PCBPlotter</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)obj\vs2022\PCBPlotter\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>PCBPlotter</TargetName>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)obj\vs2022\PCBPlotter\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>PCBPlotter</TargetName>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;PCBP_APP;UNICODE;_UNICODE;IMGUI_DEFINE_MATH_OPERATORS;NOMINMAX;WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;$(ProjectDir)sdk;$(ProjectDir)third_party\imgui;$(ProjectDir)..\..\sdk;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalOptions>/utf-8 /Zc:__cplusplus /wd4100 /wd4244 /wd4267 /wd4389 /wd4456 /wd4457 /wd4458 /wd4459 /wd4505 /wd4702 /wd4706 /wd4127 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+      <Optimization>Disabled</Optimization>
+      <FunctionLevelLinking>false</FunctionLevelLinking>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>false</EnableCOMDATFolding>
+      <OptimizeReferences>false</OptimizeReferences>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;d2d1.lib;dwrite.lib;windowscodecs.lib;imm32.lib;dwmapi.lib;uxtheme.lib;comctl32.lib;comdlg32.lib;shell32.lib;shlwapi.lib;ole32.lib;uuid.lib;gdi32.lib;user32.lib;msimg32.lib;advapi32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <Manifest>
+      <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>
+    </Manifest>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;PCBP_APP;UNICODE;_UNICODE;IMGUI_DEFINE_MATH_OPERATORS;NOMINMAX;WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;$(ProjectDir)sdk;$(ProjectDir)third_party\imgui;$(ProjectDir)..\..\sdk;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalOptions>/utf-8 /Zc:__cplusplus /wd4100 /wd4244 /wd4267 /wd4389 /wd4456 /wd4457 /wd4458 /wd4459 /wd4505 /wd4702 /wd4706 /wd4127 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;d2d1.lib;dwrite.lib;windowscodecs.lib;imm32.lib;dwmapi.lib;uxtheme.lib;comctl32.lib;comdlg32.lib;shell32.lib;shlwapi.lib;ole32.lib;uuid.lib;gdi32.lib;user32.lib;msimg32.lib;advapi32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <Manifest>
+      <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>
+    </Manifest>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\core\aoi_align.cpp" />
+    <ClCompile Include="src\core\arrays.cpp" />
+    <ClCompile Include="src\core\autosave.cpp" />
+    <ClCompile Include="src\core\board_image.cpp" />
+    <ClCompile Include="src\core\content_detect.cpp" />
+    <ClCompile Include="src\core\export_preflight.cpp" />
+    <ClCompile Include="src\core\fileio.cpp" />
+    <ClCompile Include="src\core\formula.cpp" />
+    <ClCompile Include="src\core\formula_eval.cpp" />
+    <ClCompile Include="src\core\formula_funcs.cpp" />
+    <ClCompile Include="src\core\group_ops.cpp" />
+    <ClCompile Include="src\core\job_archive.cpp" />
+    <ClCompile Include="src\core\json.cpp" />
+    <ClCompile Include="src\core\machine_assign.cpp" />
+    <ClCompile Include="src\core\machine_job.cpp" />
+    <ClCompile Include="src\core\migrate.cpp" />
+    <ClCompile Include="src\core\package_edit.cpp" />
+    <ClCompile Include="src\core\package_resolve.cpp" />
+    <ClCompile Include="src\core\panelize.cpp" />
+    <ClCompile Include="src\core\pkg_library.cpp" />
+    <ClCompile Include="src\core\placement_check.cpp" />
+    <ClCompile Include="src\core\plot_align.cpp" />
+    <ClCompile Include="src\core\project.cpp" />
+    <ClCompile Include="src\core\project_io.cpp" />
+    <ClCompile Include="src\core\sheet.cpp" />
+    <ClCompile Include="src\core\sheet_format.cpp" />
+    <ClCompile Include="src\core\sheet_look.cpp" />
+    <ClCompile Include="src\core\sheet_model.cpp" />
+    <ClCompile Include="src\core\sides.cpp" />
+    <ClCompile Include="src\core\transform.cpp" />
+    <ClCompile Include="src\io\align_pads.cpp" />
+    <ClCompile Include="src\io\allegro_brd.cpp" />
+    <ClCompile Include="src\io\allegro_extract.cpp" />
+    <ClCompile Include="src\io\archive.cpp" />
+    <ClCompile Include="src\io\bom_import.cpp" />
+    <ClCompile Include="src\io\bom_import2.cpp" />
+    <ClCompile Include="src\io\bom_review.cpp" />
+    <ClCompile Include="src\io\bom_source.cpp" />
+    <ClCompile Include="src\io\cad_common.cpp" />
+    <ClCompile Include="src\io\cc_archive.cpp" />
+    <ClCompile Include="src\io\centroid_import.cpp" />
+    <ClCompile Include="src\io\deflate.cpp" />
+    <ClCompile Include="src\io\digitize.cpp" />
+    <ClCompile Include="src\io\docx.cpp" />
+    <ClCompile Include="src\io\dxf_outline.cpp" />
+    <ClCompile Include="src\io\eagle_brd.cpp" />
+    <ClCompile Include="src\io\fabmaster.cpp" />
+    <ClCompile Include="src\io\flexdb.cpp" />
+    <ClCompile Include="src\io\gencad.cpp" />
+    <ClCompile Include="src\io\gerber.cpp" />
+    <ClCompile Include="src\io\gerber_match.cpp" />
+    <ClCompile Include="src\io\html_rich.cpp" />
+    <ClCompile Include="src\io\inflate.cpp" />
+    <ClCompile Include="src\io\io_util.cpp" />
+    <ClCompile Include="src\io\ipc2581.cpp" />
+    <ClCompile Include="src\io\ipc356.cpp" />
+    <ClCompile Include="src\io\jet_mdb.cpp" />
+    <ClCompile Include="src\io\jet_write.cpp" />
+    <ClCompile Include="src\io\juki_import.cpp" />
+    <ClCompile Include="src\io\juki_writer.cpp" />
+    <ClCompile Include="src\io\kicad_pcb.cpp" />
+    <ClCompile Include="src\io\lzw.cpp" />
+    <ClCompile Include="src\io\m1_bom.cpp" />
+    <ClCompile Include="src\io\mail_eml.cpp" />
+    <ClCompile Include="src\io\mail_msg.cpp" />
+    <ClCompile Include="src\io\mentor_neutral.cpp" />
+    <ClCompile Include="src\io\mime.cpp" />
+    <ClCompile Include="src\io\odbpp.cpp" />
+    <ClCompile Include="src\io\ods.cpp" />
+    <ClCompile Include="src\io\pads_ascii.cpp" />
+    <ClCompile Include="src\io\pnp_import.cpp" />
+    <ClCompile Include="src\io\pnp_program.cpp" />
+    <ClCompile Include="src\io\program_view.cpp" />
+    <ClCompile Include="src\io\rtf.cpp" />
+    <ClCompile Include="src\io\sheet_preview.cpp" />
+    <ClCompile Include="src\io\text_import.cpp" />
+    <ClCompile Include="src\io\text_table.cpp" />
+    <ClCompile Include="src\io\viewmate_bin.cpp" />
+    <ClCompile Include="src\io\xlsx.cpp" />
+    <ClCompile Include="src\io\xml_lite.cpp" />
+    <ClCompile Include="src\plugins\builtin_plugins.cpp" />
+    <ClCompile Include="src\plugins\cad_formats_v2.cpp" />
+    <ClCompile Include="src\plugins\juki_import_plugin.cpp" />
+    <ClCompile Include="src\plugins\plugin_dll_win.cpp" />
+    <ClCompile Include="src\plugins\plugin_registry.cpp" />
+    <ClCompile Include="src\plugins\viewmate_plugin.cpp" />
+    <ClCompile Include="src\ui\d2d.cpp" />
+    <ClCompile Include="src\ui\icons.cpp" />
+    <ClCompile Include="src\ui\theme.cpp" />
+    <ClCompile Include="src\ui\win.cpp" />
+    <ClCompile Include="src\ui\window.cpp" />
+    <ClCompile Include="src\app\board_render.cpp" />
+    <ClCompile Include="src\app\commands.cpp" />
+    <ClCompile Include="src\app\dialogs.cpp" />
+    <ClCompile Include="src\app\doc.cpp" />
+    <ClCompile Include="src\app\settings.cpp" />
+    <ClCompile Include="src\gui\about_audio.cpp" />
+    <ClCompile Include="src\gui\align_tool.cpp" />
+    <ClCompile Include="src\gui\board_image.cpp" />
+    <ClCompile Include="src\gui\bom_review_ui.cpp" />
+    <ClCompile Include="src\gui\circuit_fx.cpp" />
+    <ClCompile Include="src\gui\doc_viewer.cpp" />
+    <ClCompile Include="src\gui\file_assoc_dialog.cpp" />
+    <ClCompile Include="src\gui\file_preview.cpp" />
+    <ClCompile Include="src\gui\flexdb_view.cpp" />
+    <ClCompile Include="src\gui\gcanvas.cpp" />
+    <ClCompile Include="src\gui\gdialogs.cpp" />
+    <ClCompile Include="src\gui\gerber_gpu.cpp" />
+    <ClCompile Include="src\gui\gerber_workspace.cpp" />
+    <ClCompile Include="src\gui\gform.cpp" />
+    <ClCompile Include="src\gui\gfx.cpp" />
+    <ClCompile Include="src\gui\gmain.cpp" />
+    <ClCompile Include="src\gui\group_ops.cpp" />
+    <ClCompile Include="src\gui\gtheme.cpp" />
+    <ClCompile Include="src\gui\hex_viewer.cpp" />
+    <ClCompile Include="src\gui\job_files_view.cpp" />
+    <ClCompile Include="src\gui\m1_import.cpp" />
+    <ClCompile Include="src\gui\machine_data_ui.cpp" />
+    <ClCompile Include="src\gui\migrate_dialog.cpp" />
+    <ClCompile Include="src\gui\odb_import_dialog.cpp" />
+    <ClCompile Include="src\gui\output_views.cpp" />
+    <ClCompile Include="src\gui\package_library.cpp" />
+    <ClCompile Include="src\gui\pkg_wizard.cpp" />
+    <ClCompile Include="src\gui\plotter_view.cpp" />
+    <ClCompile Include="src\gui\pnp_editor.cpp" />
+    <ClCompile Include="src\gui\sheet_bom.cpp" />
+    <ClCompile Include="src\gui\sheet_dialogs.cpp" />
+    <ClCompile Include="src\gui\sheet_editor.cpp" />
+    <ClCompile Include="src\gui\sheet_grid.cpp" />
+    <ClCompile Include="src\gui\sheet_ribbon.cpp" />
+    <ClCompile Include="src\gui\sheet_ui.cpp" />
+    <ClCompile Include="src\gui\shell.cpp" />
+    <ClCompile Include="src\gui\tables_views.cpp" />
+    <ClCompile Include="src\gui\text_editor.cpp" />
+    <ClCompile Include="src\platform\crash.cpp" />
+    <ClCompile Include="src\platform\m1_odbc.cpp" />
+    <ClCompile Include="src\platform\pdf_winrt.cpp" />
+    <ClCompile Include="src\platform\win_shell.cpp" />
+    <ClCompile Include="third_party\imgui\imgui.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_draw.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_impl_win32.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_tables.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_widgets.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\core\aoi_align.h" />
+    <ClInclude Include="src\core\arrays.h" />
+    <ClInclude Include="src\core\autosave.h" />
+    <ClInclude Include="src\core\board_image.h" />
+    <ClInclude Include="src\core\content_detect.h" />
+    <ClInclude Include="src\core\dialog_guard.h" />
+    <ClInclude Include="src\core\export_preflight.h" />
+    <ClInclude Include="src\core\fileio.h" />
+    <ClInclude Include="src\core\formula.h" />
+    <ClInclude Include="src\core\formula_internal.h" />
+    <ClInclude Include="src\core\geom.h" />
+    <ClInclude Include="src\core\group_ops.h" />
+    <ClInclude Include="src\core\job_archive.h" />
+    <ClInclude Include="src\core\json.h" />
+    <ClInclude Include="src\core\machine_assign.h" />
+    <ClInclude Include="src\core\machine_job.h" />
+    <ClInclude Include="src\core\migrate.h" />
+    <ClInclude Include="src\core\package_edit.h" />
+    <ClInclude Include="src\core\package_name.h" />
+    <ClInclude Include="src\core\package_resolve.h" />
+    <ClInclude Include="src\core\panelize.h" />
+    <ClInclude Include="src\core\pkg_library.h" />
+    <ClInclude Include="src\core\placement_check.h" />
+    <ClInclude Include="src\core\plot_align.h" />
+    <ClInclude Include="src\core\project.h" />
+    <ClInclude Include="src\core\project_io.h" />
+    <ClInclude Include="src\core\selection_sets.h" />
+    <ClInclude Include="src\core\sheet.h" />
+    <ClInclude Include="src\core\sides.h" />
+    <ClInclude Include="src\core\transform.h" />
+    <ClInclude Include="src\io\align_pads.h" />
+    <ClInclude Include="src\io\allegro_brd.h" />
+    <ClInclude Include="src\io\allegro_extract.h" />
+    <ClInclude Include="src\io\archive.h" />
+    <ClInclude Include="src\io\bom_import.h" />
+    <ClInclude Include="src\io\bom_import2.h" />
+    <ClInclude Include="src\io\bom_review.h" />
+    <ClInclude Include="src\io\cad_common.h" />
+    <ClInclude Include="src\io\cc_archive.h" />
+    <ClInclude Include="src\io\centroid_import.h" />
+    <ClInclude Include="src\io\deflate.h" />
+    <ClInclude Include="src\io\digitize.h" />
+    <ClInclude Include="src\io\docx.h" />
+    <ClInclude Include="src\io\dxf_outline.h" />
+    <ClInclude Include="src\io\eagle_brd.h" />
+    <ClInclude Include="src\io\fabmaster.h" />
+    <ClInclude Include="src\io\flexdb.h" />
+    <ClInclude Include="src\io\gencad.h" />
+    <ClInclude Include="src\io\gerber.h" />
+    <ClInclude Include="src\io\gerber_match.h" />
+    <ClInclude Include="src\io\inflate.h" />
+    <ClInclude Include="src\io\io_util.h" />
+    <ClInclude Include="src\io\ipc2581.h" />
+    <ClInclude Include="src\io\ipc356.h" />
+    <ClInclude Include="src\io\jet_mdb.h" />
+    <ClInclude Include="src\io\jet_write.h" />
+    <ClInclude Include="src\io\juki_import.h" />
+    <ClInclude Include="src\io\juki_writer.h" />
+    <ClInclude Include="src\io\kicad_pcb.h" />
+    <ClInclude Include="src\io\lzw.h" />
+    <ClInclude Include="src\io\m1_bom.h" />
+    <ClInclude Include="src\io\mail_eml.h" />
+    <ClInclude Include="src\io\mail_msg.h" />
+    <ClInclude Include="src\io\mentor_neutral.h" />
+    <ClInclude Include="src\io\mime.h" />
+    <ClInclude Include="src\io\odbpp.h" />
+    <ClInclude Include="src\io\ods.h" />
+    <ClInclude Include="src\io\pads_ascii.h" />
+    <ClInclude Include="src\io\pnp_import.h" />
+    <ClInclude Include="src\io\pnp_program.h" />
+    <ClInclude Include="src\io\program_view.h" />
+    <ClInclude Include="src\io\richdoc.h" />
+    <ClInclude Include="src\io\rtf.h" />
+    <ClInclude Include="src\io\sheet_preview.h" />
+    <ClInclude Include="src\io\text_import.h" />
+    <ClInclude Include="src\io\text_table.h" />
+    <ClInclude Include="src\io\viewmate_bin.h" />
+    <ClInclude Include="src\io\xlsx.h" />
+    <ClInclude Include="src\io\xlsx_xml.h" />
+    <ClInclude Include="src\io\xml_lite.h" />
+    <ClInclude Include="src\plugins\plugin.h" />
+    <ClInclude Include="src\ui\d2d.h" />
+    <ClInclude Include="src\ui\form.h" />
+    <ClInclude Include="src\ui\icons.h" />
+    <ClInclude Include="src\ui\theme.h" />
+    <ClInclude Include="src\ui\win.h" />
+    <ClInclude Include="src\ui\window.h" />
+    <ClInclude Include="src\app\app.h" />
+    <ClInclude Include="src\app\board_render.h" />
+    <ClInclude Include="src\app\commands.h" />
+    <ClInclude Include="src\app\doc.h" />
+    <ClInclude Include="src\gui\about_audio.h" />
+    <ClInclude Include="src\gui\bom_review_ui.h" />
+    <ClInclude Include="src\gui\file_editors.h" />
+    <ClInclude Include="src\gui\file_preview.h" />
+    <ClInclude Include="src\gui\gapp.h" />
+    <ClInclude Include="src\gui\gcanvas.h" />
+    <ClInclude Include="src\gui\gerber_gpu.h" />
+    <ClInclude Include="src\gui\gfx.h" />
+    <ClInclude Include="src\gui\import_extras.h" />
+    <ClInclude Include="src\gui\input_resync.h" />
+    <ClInclude Include="src\gui\pkg_wizard.h" />
+    <ClInclude Include="src\gui\sheet_editor.h" />
+    <ClInclude Include="src\gui\sheet_ui.h" />
+    <ClInclude Include="src\gui\view_cache.h" />
+    <ClInclude Include="src\platform\crash.h" />
+    <ClInclude Include="src\platform\m1_odbc.h" />
+    <ClInclude Include="src\platform\pdf_winrt.h" />
+    <ClInclude Include="src\platform\win_shell.h" />
+    <ClInclude Include="third_party\imgui\imconfig.h" />
+    <ClInclude Include="third_party\imgui\imgui.h" />
+    <ClInclude Include="third_party\imgui\imgui_impl_win32.h" />
+    <ClInclude Include="third_party\imgui\imgui_internal.h" />
+    <ClInclude Include="third_party\imgui\imstb_rectpack.h" />
+    <ClInclude Include="third_party\imgui\imstb_textedit.h" />
+    <ClInclude Include="third_party\imgui\imstb_truetype.h" />
+    <ClInclude Include="sdk\pcbp_plugin.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="res\app.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="res\app.manifest" />
+    <Image Include="res\app.ico" />
+    <Image Include="res\icons\cpf.ico" />
+    <Image Include="res\icons\gerber.ico" />
+    <Image Include="res\icons\import.ico" />
+    <Image Include="res\icons\ipc.ico" />
+    <Image Include="res\icons\odb.ico" />
+    <Image Include="res\icons\pcbp.ico" />
+    <Image Include="res\icons\pnp.ico" />
+    <Image Include="res\icons\sheet.ico" />
+    <Image Include="res\icons\vmjob.ico" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

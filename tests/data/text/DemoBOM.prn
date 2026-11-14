@@ -1,0 +1,30 @@
+;Bill of Materials
+;Synthetic Demonstration Board
+;
+;Reference              Part Number               Type            Description                                                     Process         Cage Code       Sofware Rev     Vendor Part Number      Polarity
+;
+TP1-TP6                 TPT-1000-01               TP              SMT Test Point                                                  SMT             1000            Rev. 01         VTPT-1000-01            FALSE
+R1,R2                   RES-AX-5K                 AXIAL           Resistor, 5k Ohm                                                SLIDE           1037            N/A             VRES-AX-5K              FALSE
+RN1-RN2                 RNET-SIP10-10K            SIP10           Resistor network, SIP package                                   SLIDE           1074            N/A             VRNET-SIP10-10K         TRUE
+J3                      HDR-6P-254                HDR6            Connector, 6 pin header                                         SLIDE           1111            N/A             VHDR-6P-254             TRUE
+RN3                     RNET-DIP16-1K             DIP16           Resistor network (16 pin)                                       SLIDE           1148            N/A             VRNET-DIP16-1K          TRUE
+J1                      CONN-50P                  CONN50          50 pin connector                                                HAND            1185            N/A             VCONN-50P               TRUE
+J2                      CONN-40P                  CONN40          40 pin connector                                                HAND            1222            N/A             VCONN-40P               N
+X1                      OSC-20M-A                 CRYSTAL1        Crystal oscillator (moisture sensitive)                         HAND            1259            N/A             VOSC-20M-A              TRUE
+X2                      OSC-20M-B                 CRYSTAL2        Crystal oscillator (sealed)                                     HAND            1296            N/A             VOSC-20M-B              TRUE
+R6-8                    TRIM-10K                  TRIMR           Resistor (trimmable)                                            SLIDE           1333            N/A             VTRIM-10K               TRUE
+T1-T2                   XFMR-1-1                  TRANS           Transformer                                                     HAND            1370            N/A             VXFMR-1-1               TRUE
+R9-R18                  RES-AX-10K                AXIAL           Resistor 10k Ohm                                                SLIDE           1407            N/A             VRES-AX-10K             FALSE
+C1-C25,C27-C34          CAP-0805-100N             0805            Capacitor (0805 SMT package)                                    SMT             1444            N/A             VCAP-0805-100N          FALSE
+C26                     CAP-4334-10U              4334            Capacitor (4334 package)                                        SMT             1481            N/A             VCAP-4334-10U           TRUE
+U2                      IC-DIP24W-LOGIC           24DIPW          Logic circuit                                                   AUTO            1518            N/A             VIC-DIP24W-LOGIC        TRUE
+U3,U11,U14              IC-DIP24-CNT              DIP24           Counter                                                         AUTO            1555            N/A             VIC-DIP24-CNT           TRUE
+U4                      IC-DIP16-MUX              DIP16           Multiplexer                                                     AUTO            1592            N/A             VIC-DIP16-MUX           TRUE
+U5-U7                   IC-SOIC8-OPA              SOIC8           Op amp                                                          SMT             1629            N/A             VIC-SOIC8-OPA           TRUE
+U8                      IC-PLCC32-MEM             PLCC32          Memory                                                          SMT             1666            N/A             VIC-PLCC32-MEM          TRUE
+U9-U10                  IC-PQFP132-CPU            PQFP132         Processor                                                       SMT             1703            N/A             VIC-PQFP132-CPU         TRUE
+U12-U13                 IC-SOIC16W-DRV            SOIC16W         Line driver                                                     SMT             1740            N/A             VIC-SOIC16W-DRV         TRUE
+U15                     IC-SOIC20-BUF             SOIC20          Buffer                                                          SMT             1777            N/A             VIC-SOIC20-BUF          TRUE
+U16                     IC-SOIC24-ADC             SOIC24          ADC                                                             SMT             1814            N/A             VIC-SOIC24-ADC          TRUE
+U17                     IC-SOIC32-RAM             SOIC32          RAM                                                             SMT             1851            N/A             VIC-SOIC32-RAM          TRUE
+D1-D17                  DIO-SOD123-1A             SOD123          Diode 1A                                                        SMT             1888            N/A             VDIO-SOD123-1A          TRUE

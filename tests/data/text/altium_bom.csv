@@ -1,0 +1,5 @@
+"Comment","Description","Designator","Footprint","LibRef","Quantity"
+"10k","Resistor 1%","R1, R2, R5","0603","RES-10K-0603","3"
+"100nF","Capacitor X7R","C1-C4","0402","CAP-100N-0402","4"
+"STM32F103","MCU","U1","LQFP48","IC-STM32F103","1"
+"DNP","Not fitted","R9","0603","RES-DNP","1"

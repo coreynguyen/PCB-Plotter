@@ -1,0 +1,88 @@
+Return-Path: <alice@example.com>
+From: =?ISO-8859-1?Q?Andr=E9_Example?= <andre@example.com>
+To: Bob <bob@example.com>, "Carol, QA" <carol@example.com>
+Cc: =?UTF-8?B?w4l0aWVubmU=?= <et@example.com>
+Subject: =?UTF-8?Q?Gerbers_+_BOM_=E2=80=94_rev?= =?UTF-8?Q?_C?=
+Date: Sat, 14 Mar 2026 09:26:53 -0400
+Message-ID: <abc123@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="MIX"
+
+This is a multi-part message in MIME format.
+--MIX
+Content-Type: multipart/alternative; boundary="ALT"
+
+--ALT
+Content-Type: text/plain; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+Hi Bob,=0D
+please find the files attached. Caf=E9 soft=
+ break.
+
+--ALT
+Content-Type: multipart/related; boundary="REL"
+
+--REL
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGhlYWQ+PHRpdGxlPlQ8L3RpdGxlPjxzY3JpcHQ+ZG9jdW1lbnQud3JpdGUoIngiKTwv
+c2NyaXB0PjxzdHlsZT4uYXt9PC9zdHlsZT48L2hlYWQ+PGJvZHkgb25sb2FkPSJhbGVydCgxKSI+
+PGgxPkhlYWRpbmc8L2gxPjxwPkhlbGxvIDxiPmJvbGQ8L2I+IDxpPml0PC9pPiA8YSBocmVmPSJo
+dHRwczovL2V4YW1wbGUuY29tL3EiPmxpbms8L2E+ICZhbXA7ICZldXJvOyAmIzIzMzs8L3A+PHVs
+PjxsaT5vbmU8L2xpPjxsaT50d288L2xpPjwvdWw+PG9sPjxsaT5maXJzdDwvbGk+PGxpPnNlY29u
+ZDwvbGk+PC9vbD48dGFibGU+PHRyPjx0aD5SZWY8L3RoPjx0aD5RdHk8L3RoPjwvdHI+PHRyPjx0
+ZD5SMTwvdGQ+PHRkPjI8L3RkPjwvdHI+PC90YWJsZT48cD48aW1nIHNyYz0iY2lkOmxvZ29AY2lk
+IiBhbHQ9ImxvZ28iPiA8aW1nIHNyYz0iaHR0cHM6Ly90cmFja2VyLmV4YW1wbGUvcC5naWYiIHdp
+ZHRoPSIxIiBoZWlnaHQ9IjEiPiA8aW1nIHNyYz0iaHR0cDovL2V4YW1wbGUuY29tL3JlbW90ZS5w
+bmciIGFsdD0iciI+PC9wPjxwIHN0eWxlPSJjb2xvcjojZmYwMDAwO2ZvbnQtd2VpZ2h0OmJvbGQi
+PnJlZCBib2xkPC9wPjxpZnJhbWUgc3JjPSJodHRwOi8veCI+PC9pZnJhbWU+PC9ib2R5PjwvaHRt
+bD4=
+--REL
+Content-Type: image/png; name="logo.png"
+Content-Transfer-Encoding: base64
+Content-ID: <logo@cid>
+Content-Disposition: inline; filename="logo.png"
+
+iVBORw0KGgoAAAANSUhEUgAAAAQAAAADCAIAAAA7ljmRAAAAEElEQVR4nGM4IScHRww4OQD1xwwx
+B+utmQAAAABJRU5ErkJggg==
+--REL--
+
+--ALT--
+
+--MIX
+Content-Type: text/csv; charset=utf-8
+Content-Disposition: attachment;
+ filename*0*=utf-8''St%C3%BCckliste;
+ filename*1=".csv"
+Content-Transfer-Encoding: base64
+
+UmVmLFF0eQpSMSwyCg==
+--MIX
+Content-Type: application/zip; name="=?UTF-8?Q?gerbers_r=C3=A9v.zip?="
+Content-Disposition: attachment
+Content-Transfer-Encoding: base64
+
+UEsDBBQAAAAAACSHaF29d15vFAAAABQAAAAJAAAAYm9hcmQuR1RMRzA0IHN5bnRoZXRpYyoKTTAy
+KgpQSwECFAMUAAAAAAAkh2hdvXdebxQAAAAUAAAACQAAAAAAAAAAAAAAgAEAAAAAYm9hcmQuR1RM
+UEsFBgAAAAABAAEANwAAADsAAAAAAA==
+--MIX
+Content-Type: message/rfc822
+
+From: Dave <dave@example.com>
+Subject: Original request
+Content-Type: multipart/mixed; boundary="IN"
+
+--IN
+Content-Type: text/plain
+
+Inner body
+--IN
+Content-Type: application/octet-stream
+Content-Disposition: attachment; filename="../../evil/notes.txt"
+
+inner file
+--IN--
+
+--MIX--

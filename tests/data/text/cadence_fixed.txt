@@ -1,0 +1,8 @@
+REPORT: Placed Component Report
+Design: board.brd   Date: Mon Jan 01 2024
+
+REFDES   COMP_DEVICE_TYPE        COMP_PACKAGE   SYM_X     SYM_Y     SYM_ROTATE  SYM_MIRROR
+C1       CAP_0402_100N           CAP0402        1250.00   2000.00   90          NO
+R12      RES_0603_10K            RES0603        1500.00   2100.50   0           YES
+U3       MCU_STM32               QFP48          3000.00   2500.00   270         NO
+J1       CONN_HDR_2X5            HDR2X5                    100.00   0           NO

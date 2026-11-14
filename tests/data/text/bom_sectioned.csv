@@ -1,0 +1,20 @@
+Assembly BOM,,,,,,,,,,,
+,,,,,,,,,,Report Generated: 1/2/2025,
+Client: Example Widgets Inc.,,,,,,,,,,,
+Project: Demo Controller,,,,,,,,,,NOTES:,
+Board: Test Board,,,,,,,,,,1. DNP = Do Not Populate,
+Revision: 2,,,,,,,,,,,
+,,,,,,,,,,,
+Item,Option,QTY,Designator,Manufacturer,Part Number,Alternate Manuf. 1,Alternate Part No. 1,Value,Part Type,Description,Footprint
+CAPACITORS,,,,,,,,,,,
+I1,,3,"C1, C3-C4",Acme,CAP-0603-104,Other Co,OC104-0603,100n,Capacitor,"Ceramic, 100nF, 50V",0603
+I2,DNP,1,C2,Acme,CAP-0603-105,,,1u,Capacitor,"Ceramic, 1uF",0603
+I3,DNP,1,C5,Acme,CAP-1206-475,,,4u7,Capacitor,"Ceramic, 4.7uF",1206
+,,,,,,Third Co,TC-104,,,alternate for I1,
+RESISTORS,,,,,,,,,,,
+I4,,4,R1-R4,Ohmy,RES-0402-10K,,,10k,Resistor,"Thick film, 10k",0402
+I5,,2,R5 R6,Ohmy,000123,,,0R,Resistor,Jumper,0402
+I6,,1,U1,Chipco,MCU-0001,,,MCU,IC,Microcontroller,QFN-32
+,,,,,,,,,,,
+Total,,12,,,,,,,,,
+Approved by: QA,,,,,,,,,,,

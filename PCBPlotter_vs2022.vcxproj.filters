@@ -1,0 +1,796 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="">
+      <UniqueIdentifier>{1b4db7eb-4057-5ddf-91e0-36dec72071f5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="res">
+      <UniqueIdentifier>{5f492b75-d31b-51ae-bf12-4b9a2f947a81}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\core\aoi_align.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\arrays.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\autosave.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\board_image.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\content_detect.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\export_preflight.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\fileio.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\formula.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\formula_eval.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\formula_funcs.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\group_ops.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\job_archive.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\json.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\machine_assign.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\machine_job.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\migrate.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\package_edit.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\package_resolve.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\panelize.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\pkg_library.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\placement_check.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\plot_align.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\project.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\project_io.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\sheet.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\sheet_format.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\sheet_look.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\sheet_model.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\sides.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\transform.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\align_pads.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\allegro_brd.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\allegro_extract.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\archive.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\bom_import.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\bom_import2.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\bom_review.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\bom_source.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\cad_common.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\cc_archive.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\centroid_import.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\deflate.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\digitize.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\docx.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\dxf_outline.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\eagle_brd.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\fabmaster.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\flexdb.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\gencad.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\gerber.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\gerber_match.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\html_rich.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\inflate.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\io_util.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\ipc2581.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\ipc356.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\jet_mdb.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\jet_write.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\juki_import.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\juki_writer.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\kicad_pcb.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\lzw.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\m1_bom.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\mail_eml.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\mail_msg.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\mentor_neutral.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\mime.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\odbpp.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\ods.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\pads_ascii.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\pnp_import.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\pnp_program.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\program_view.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\rtf.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\sheet_preview.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\text_import.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\text_table.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\viewmate_bin.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\xlsx.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\xml_lite.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\plugins\builtin_plugins.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\plugins\cad_formats_v2.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\plugins\juki_import_plugin.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\plugins\plugin_dll_win.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\plugins\plugin_registry.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\plugins\viewmate_plugin.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\d2d.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\icons.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\theme.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\win.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\window.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\board_render.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\commands.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\dialogs.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\doc.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\settings.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\about_audio.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\align_tool.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\board_image.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\bom_review_ui.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\circuit_fx.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\doc_viewer.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\file_assoc_dialog.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\file_preview.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\flexdb_view.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\gcanvas.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\gdialogs.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\gerber_gpu.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\gerber_workspace.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\gform.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\gfx.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\gmain.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\group_ops.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\gtheme.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\hex_viewer.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\job_files_view.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\m1_import.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\machine_data_ui.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\migrate_dialog.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\odb_import_dialog.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\output_views.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\package_library.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\pkg_wizard.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\plotter_view.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\pnp_editor.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\sheet_bom.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\sheet_dialogs.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\sheet_editor.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\sheet_grid.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\sheet_ribbon.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\sheet_ui.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\shell.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\tables_views.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\gui\text_editor.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\crash.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\m1_odbc.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\pdf_winrt.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\win_shell.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\imgui\imgui.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_draw.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_impl_win32.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_tables.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_widgets.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClInclude Include="src\core\aoi_align.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\arrays.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\autosave.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\board_image.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\content_detect.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\dialog_guard.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\export_preflight.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\fileio.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\formula.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\formula_internal.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\geom.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\group_ops.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\job_archive.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\json.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\machine_assign.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\machine_job.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\migrate.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\package_edit.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\package_name.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\package_resolve.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\panelize.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\pkg_library.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\placement_check.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\plot_align.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\project.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\project_io.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\selection_sets.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\sheet.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\sides.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\transform.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\align_pads.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\allegro_brd.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\allegro_extract.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\archive.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\bom_import.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\bom_import2.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\bom_review.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\cad_common.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\cc_archive.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\centroid_import.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\deflate.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\digitize.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\docx.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\dxf_outline.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\eagle_brd.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\fabmaster.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\flexdb.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\gencad.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\gerber.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\gerber_match.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\inflate.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\io_util.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\ipc2581.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\ipc356.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\jet_mdb.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\jet_write.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\juki_import.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\juki_writer.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\kicad_pcb.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\lzw.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\m1_bom.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\mail_eml.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\mail_msg.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\mentor_neutral.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\mime.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\odbpp.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\ods.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\pads_ascii.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\pnp_import.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\pnp_program.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\program_view.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\richdoc.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\rtf.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\sheet_preview.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\text_import.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\text_table.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\viewmate_bin.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\xlsx.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\xlsx_xml.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\xml_lite.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\plugins\plugin.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\ui\d2d.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\ui\form.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\ui\icons.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\ui\theme.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\ui\win.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\ui\window.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\app\app.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\app\board_render.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\app\commands.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\app\doc.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\about_audio.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\bom_review_ui.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\file_editors.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\file_preview.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\gapp.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\gcanvas.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\gerber_gpu.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\gfx.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\import_extras.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\input_resync.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\pkg_wizard.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\sheet_editor.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\sheet_ui.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\gui\view_cache.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\platform\crash.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\platform\m1_odbc.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\platform\pdf_winrt.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\platform\win_shell.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imconfig.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imgui.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imgui_impl_win32.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imgui_internal.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imstb_rectpack.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imstb_textedit.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imstb_truetype.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\pcbp_plugin.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ResourceCompile Include="res\app.rc">
+      <Filter>res</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,10 @@
+UNITS=INCH
+#
+S P 0
+OB 0 0 I
+OS 1.5 0
+OS 1.5 1.2
+OS 0 1.2
+OS 0 0
+OE
+SE

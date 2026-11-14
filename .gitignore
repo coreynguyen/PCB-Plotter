@@ -1,78 +1,24 @@
-# Build results
-[Dd]ebug/
-[Dd]ebugPublic/
-[Rr]elease/
-[Rr]eleases/
-x64/
-x86/
-[Ww][Ii][Nn]32/
-[Aa][Rr][Mm]/
-[Aa][Rr][Mm]64/
-bld/
-[Bb]in/
-[Oo]bj/
-[Ll]og/
-[Ll]ogs/
-
-# Visual Studio files
-.vs/
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
-*.userprefs
-
-# Build results
-*.dll
+# build output
+build/
+bin/
+obj/
+bin_prebuilt/
+*.o
 *.exe
+*.dll
 *.pdb
-*.cache
-
-# NuGet
-packages/
-*.nupkg
-**/[Pp]ackages/*
-
-# Rider
-.idea/
-
-# User-specific files
-*.rsuser
-*.suo
+.vs/
 *.user
-*.userosscache
-*.sln.docstates
+__pycache__/
 
-# Windows image file caches
-Thumbs.db
-ehthumbs.db
+# private, never committed: real customer / vendor sample data and the map that points at it
+tests/local_data.map
+tests/data/private/
 
-# Folder config file
-Desktop.ini
+# internal reverse-engineering notes and reference material (kept out of the public repo)
+specs/
+legacy/
+tools/vm/
 
-# Recycle Bin
-$RECYCLE.BIN/
-
-# VS Code
-.vscode/
-
-# ReSharper
-_ReSharper*/
-*.DotSettings.user
-
-# Test results
-[Tt]est[Rr]esult*/
-[Bb]uild[Ll]og.*
-
-# NCrunch
-*.ncrunchproject
-*.ncrunchsolution
-_NCrunch_*/
-
-# Backup & report files
-*.bak
-*.log
-
-# Project files
-*.jpp
-!sample.jpp
+# third-party sample of unconfirmed license (local only)
+tests/data/gerber/kicad10/

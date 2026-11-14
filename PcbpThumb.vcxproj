@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{6C1E5A3B-8F2D-4B7A-9E41-2D5C7A1B9F03}</ProjectGuid>
+    <RootNamespace>PcbpThumb</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)obj\PcbpThumb\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>pcbp_thumb</TargetName>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)obj\PcbpThumb\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>pcbp_thumb</TargetName>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;PCBP_THUMB;UNICODE;_UNICODE;IMGUI_DEFINE_MATH_OPERATORS;NOMINMAX;WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;$(ProjectDir)sdk;$(ProjectDir)third_party\imgui;$(ProjectDir)..\..\sdk;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalOptions>/utf-8 /Zc:__cplusplus /wd4100 /wd4244 /wd4267 /wd4389 /wd4456 /wd4457 /wd4458 /wd4459 /wd4505 /wd4702 /wd4706 /wd4127 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+      <Optimization>Disabled</Optimization>
+      <FunctionLevelLinking>false</FunctionLevelLinking>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>false</EnableCOMDATFolding>
+      <OptimizeReferences>false</OptimizeReferences>
+      <AdditionalDependencies>ole32.lib;uuid.lib;shell32.lib;gdi32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <ModuleDefinitionFile>src\platform\thumb\pcbp_thumb.def</ModuleDefinitionFile>
+    </Link>
+    <Manifest>
+      <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>
+    </Manifest>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;PCBP_THUMB;UNICODE;_UNICODE;IMGUI_DEFINE_MATH_OPERATORS;NOMINMAX;WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;$(ProjectDir)sdk;$(ProjectDir)third_party\imgui;$(ProjectDir)..\..\sdk;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalOptions>/utf-8 /Zc:__cplusplus /wd4100 /wd4244 /wd4267 /wd4389 /wd4456 /wd4457 /wd4458 /wd4459 /wd4505 /wd4702 /wd4706 /wd4127 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>ole32.lib;uuid.lib;shell32.lib;gdi32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <ModuleDefinitionFile>src\platform\thumb\pcbp_thumb.def</ModuleDefinitionFile>
+    </Link>
+    <Manifest>
+      <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>
+    </Manifest>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\platform\thumb\pcbp_thumb.cpp" />
+    <ClCompile Include="src\platform\thumb\thumb_render.cpp" />
+    <ClCompile Include="src\core\aoi_align.cpp" />
+    <ClCompile Include="src\core\arrays.cpp" />
+    <ClCompile Include="src\core\autosave.cpp" />
+    <ClCompile Include="src\core\board_image.cpp" />
+    <ClCompile Include="src\core\content_detect.cpp" />
+    <ClCompile Include="src\core\export_preflight.cpp" />
+    <ClCompile Include="src\core\fileio.cpp" />
+    <ClCompile Include="src\core\formula.cpp" />
+    <ClCompile Include="src\core\formula_eval.cpp" />
+    <ClCompile Include="src\core\formula_funcs.cpp" />
+    <ClCompile Include="src\core\group_ops.cpp" />
+    <ClCompile Include="src\core\job_archive.cpp" />
+    <ClCompile Include="src\core\json.cpp" />
+    <ClCompile Include="src\core\machine_assign.cpp" />
+    <ClCompile Include="src\core\machine_job.cpp" />
+    <ClCompile Include="src\core\migrate.cpp" />
+    <ClCompile Include="src\core\package_edit.cpp" />
+    <ClCompile Include="src\core\package_resolve.cpp" />
+    <ClCompile Include="src\core\panelize.cpp" />
+    <ClCompile Include="src\core\pkg_library.cpp" />
+    <ClCompile Include="src\core\placement_check.cpp" />
+    <ClCompile Include="src\core\plot_align.cpp" />
+    <ClCompile Include="src\core\project.cpp" />
+    <ClCompile Include="src\core\project_io.cpp" />
+    <ClCompile Include="src\core\sheet.cpp" />
+    <ClCompile Include="src\core\sheet_format.cpp" />
+    <ClCompile Include="src\core\sheet_look.cpp" />
+    <ClCompile Include="src\core\sheet_model.cpp" />
+    <ClCompile Include="src\core\sides.cpp" />
+    <ClCompile Include="src\core\transform.cpp" />
+    <ClCompile Include="src\io\align_pads.cpp" />
+    <ClCompile Include="src\io\allegro_brd.cpp" />
+    <ClCompile Include="src\io\allegro_extract.cpp" />
+    <ClCompile Include="src\io\archive.cpp" />
+    <ClCompile Include="src\io\bom_import.cpp" />
+    <ClCompile Include="src\io\bom_import2.cpp" />
+    <ClCompile Include="src\io\bom_review.cpp" />
+    <ClCompile Include="src\io\bom_source.cpp" />
+    <ClCompile Include="src\io\cad_common.cpp" />
+    <ClCompile Include="src\io\cc_archive.cpp" />
+    <ClCompile Include="src\io\centroid_import.cpp" />
+    <ClCompile Include="src\io\deflate.cpp" />
+    <ClCompile Include="src\io\digitize.cpp" />
+    <ClCompile Include="src\io\docx.cpp" />
+    <ClCompile Include="src\io\dxf_outline.cpp" />
+    <ClCompile Include="src\io\eagle_brd.cpp" />
+    <ClCompile Include="src\io\fabmaster.cpp" />
+    <ClCompile Include="src\io\flexdb.cpp" />
+    <ClCompile Include="src\io\gencad.cpp" />
+    <ClCompile Include="src\io\gerber.cpp" />
+    <ClCompile Include="src\io\gerber_match.cpp" />
+    <ClCompile Include="src\io\html_rich.cpp" />
+    <ClCompile Include="src\io\inflate.cpp" />
+    <ClCompile Include="src\io\io_util.cpp" />
+    <ClCompile Include="src\io\ipc2581.cpp" />
+    <ClCompile Include="src\io\ipc356.cpp" />
+    <ClCompile Include="src\io\jet_mdb.cpp" />
+    <ClCompile Include="src\io\jet_write.cpp" />
+    <ClCompile Include="src\io\juki_import.cpp" />
+    <ClCompile Include="src\io\juki_writer.cpp" />
+    <ClCompile Include="src\io\kicad_pcb.cpp" />
+    <ClCompile Include="src\io\lzw.cpp" />
+    <ClCompile Include="src\io\m1_bom.cpp" />
+    <ClCompile Include="src\io\mail_eml.cpp" />
+    <ClCompile Include="src\io\mail_msg.cpp" />
+    <ClCompile Include="src\io\mentor_neutral.cpp" />
+    <ClCompile Include="src\io\mime.cpp" />
+    <ClCompile Include="src\io\odbpp.cpp" />
+    <ClCompile Include="src\io\ods.cpp" />
+    <ClCompile Include="src\io\pads_ascii.cpp" />
+    <ClCompile Include="src\io\pnp_import.cpp" />
+    <ClCompile Include="src\io\pnp_program.cpp" />
+    <ClCompile Include="src\io\program_view.cpp" />
+    <ClCompile Include="src\io\rtf.cpp" />
+    <ClCompile Include="src\io\sheet_preview.cpp" />
+    <ClCompile Include="src\io\text_import.cpp" />
+    <ClCompile Include="src\io\text_table.cpp" />
+    <ClCompile Include="src\io\viewmate_bin.cpp" />
+    <ClCompile Include="src\io\xlsx.cpp" />
+    <ClCompile Include="src\io\xml_lite.cpp" />
+    <ClCompile Include="src\plugins\builtin_plugins.cpp" />
+    <ClCompile Include="src\plugins\cad_formats_v2.cpp" />
+    <ClCompile Include="src\plugins\juki_import_plugin.cpp" />
+    <ClCompile Include="src\plugins\plugin_registry.cpp" />
+    <ClCompile Include="src\plugins\viewmate_plugin.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\platform\thumb\thumb_render.h" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

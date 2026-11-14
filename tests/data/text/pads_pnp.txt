@@ -1,0 +1,3 @@
+Ref.Des. Part Type    Decal   X       Y       Orient. Layer
+R1      RES10K      R0603   1.250   2.000   90      Top
+U1      LM358       SO8     2.500   1.000   180     Bottom

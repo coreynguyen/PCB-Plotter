@@ -1,0 +1,7 @@
+sep=,
+Ref,Value,Footprint,Notes,Qty
+"R1,R2",10k,="0805","multi
+line note",2
+U1,MCU,TQFP32,"say ""hi""",1
+,,,,
+Total,,,,3
