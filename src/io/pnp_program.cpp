@@ -15,6 +15,7 @@
 #include <cstring>
 #include <map>
 #include <set>
+#include <cctype>
 
 namespace pcbp::io {
 

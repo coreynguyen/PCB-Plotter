@@ -466,8 +466,8 @@ bool Database::load_tdef(uint32_t pg, TableDef& td, std::string& err) const {
 // ---------------------------------------------------------------------------
 bool Database::used_pages(const TableDef& td, uint32_t tdef_pg, std::vector<uint32_t>& pages) const {
     pages.clear();
-    const uint8_t* m;
-    uint32_t n;
+    const uint8_t* m = nullptr;
+    uint32_t n = 0;
     auto accept = [&](uint64_t pg) {
         if (pg >= num_pages_) return;
         const uint8_t* p = page(static_cast<uint32_t>(pg));

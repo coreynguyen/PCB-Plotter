@@ -178,6 +178,19 @@ void draw_underlay(ID2D1RenderTarget* rt, const Doc& d, const BoardRenderOpts& o
 }
 
 const int g_hook_installed = (g_board_underlay = &draw_underlay, 1);
+}  // namespace
+
+bool board_image_pixels(const BoardImage& bi, int max_dim, int& w, int& h, const std::vector<uint8_t>*& bgra, std::string& err) {
+    auto px = pixels(bi, max_dim);
+    if (!px || px->bgra.empty()) { err = px ? px->err : "no pixels"; return false; }
+    static std::vector<std::shared_ptr<Pix>> keep;   // the cache may drop it; the caller copies to the GPU at once
+    keep.push_back(px);
+    if (keep.size() > 4) keep.erase(keep.begin());
+    w = px->w; h = px->h; bgra = &px->bgra;
+    return true;
+}
+
+namespace {
 
 // ---------------------------------------------------------------------------
 // dialog helpers

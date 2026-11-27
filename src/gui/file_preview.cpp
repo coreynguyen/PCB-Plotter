@@ -28,6 +28,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <cctype>
 
 namespace pcbp::gui { HWND main_hwnd(); }
 

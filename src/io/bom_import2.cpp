@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <map>
 #include <set>
+#include <cctype>
 
 namespace pcbp::io {
 

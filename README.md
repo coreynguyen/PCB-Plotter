@@ -76,21 +76,24 @@ It is a single, dependency-free Windows executable written in C++20 (Dear ImGui 
 
 ## Building
 
-**Visual Studio 2026 / 2022.** Open `PCBPlotter.sln` (toolset v145) or `PCBPlotter_vs2022.sln` (v143) and build `Release|x64`. It builds C++20 with a static CRT, so the output is one exe. After adding or removing source files, run `python tools/gen_vcxproj.py`; it mirrors the source list of the mingw script.
+**Visual Studio 2026 / 2022.** Open `PCBPlotter.sln` (toolset v145) or `PCBPlotter_vs2022.sln` (v143) and build `Release|x64`. It builds C++20 with a static CRT, so the output is one exe. After adding or removing source files, run `python tools/gen_vcxproj.py`; it mirrors the source directories of the CMake build.
 
-**mingw-w64 (Linux cross build):**
+**CMake + MinGW-w64 (GCC).** One `CMakeLists.txt` covers three hosts. Ninja builds in parallel and tracks header dependencies.
 
-```sh
-JOBS=2 tools/build_mingw.sh        # -> build/mingw/PCBPlotter.exe, build/mingw/pcbp_thumb.dll
-```
+| Host | Configure / build | Output |
+|---|---|---|
+| Linux → Windows (`apt install mingw-w64 cmake ninja-build`) | `cmake --preset mingw-cross && cmake --build --preset mingw-cross` | `build/mingw-cross/bin/PCBPlotter.exe`, `pcbp_thumb.dll` |
+| Windows, MSYS2 UCRT64 (`pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja}`) | `cmake --preset mingw-native && cmake --build --preset mingw-native` | `build/mingw-native/bin/…` |
+| Linux native (core, IO and format layers + unit tests) | `cmake --preset linux-tests && cmake --build --preset linux-tests && ctest --preset linux-tests` | `build/linux-tests/tests/test_*` |
 
-**Tests** (Linux, g++ 12 or newer; the portable core, IO and format layers):
+- The binaries are self-contained (`-static`): they import only system DLLs and `msvcrt.dll`, with no libstdc++ or winpthread DLLs.
+- Options: `-DPCBP_WERROR=ON`, `-DPCBP_STATIC=OFF`, `-DPCBP_BUILD_TESTS=ON`. The `mingw-cross-tests` preset also builds the tests as Windows exes, and runs them through Wine when Wine is installed. That preset is the only one that builds Windows-only tests such as `test_seh_guard`.
+- Sources are globbed from the same directories `tools/gen_vcxproj.py` uses. Re-run the configure step after adding or removing files.
+- `tools/build_mingw.sh` (the older single-script cross build) still works.
 
-```sh
-tests/run_all.sh
-```
+**Tests.** `ctest` fails on a test's exit code. The older `tests/run_all.sh` is kept, but it only prints the tail of each test's output and ignores the result. Tests that need real-world files look them up by key in `tests/local_data.map`, a `key=path` list that is gitignored and never committed (see `tests/local_data.h`). When a key is not mapped, the sections that need it print `SKIP` and the synthetic sections still run.
 
-All test fixtures in the repository are synthetic. Tests that need real-world files look them up by key in `tests/local_data.map`, a `key=path` list that is gitignored and never committed (see `tests/local_data.h`). They are skipped when the map is missing.
+All test fixtures in the repository are synthetic.
 
 ## Repository layout
 

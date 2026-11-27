@@ -342,6 +342,8 @@ int main() {
     test_juki_resaves(r);
     test_supply_angle(r);
 
+    if (kRoot.empty()) std::printf("SKIP demo round trips: legacy_demo_root not mapped (tests/local_data.map)\n");
+    else {   // local-data section
     Project demo;
     CHECK(imp(r, "gencad", kCad, demo));
     CHECK(imp(r, "bom", kBom, demo));
@@ -411,6 +413,8 @@ int main() {
         CHECK(!res.step_repeat && q.images.size() == 1 && res.placements == (int)job.placements.size());
         std::printf("== expanded (single board): %d placements imported, %zu images\n", res.placements, q.images.size());
     }
+
+    }   // local-data section
 
     test_iss();
     test_samples(r);

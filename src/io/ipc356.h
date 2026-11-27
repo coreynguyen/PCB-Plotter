@@ -26,6 +26,9 @@ struct Ipc356Options {
     bool create_components = true;
     bool include_vias = false;          // "VIA" refdes rows become pads of a VIA pseudo component
     bool dedupe_packages = true;
+    // Recover each component's rotation from its pads and build the package axis-aligned in a canonical
+    // frame (core/footprint_canon). false = pre-R26 behaviour: package in board orientation, rot 0.
+    bool normalise_rotation = true;
     double default_pad_mm = 0.5;        // when no size field
 };
 

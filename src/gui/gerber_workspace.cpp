@@ -30,10 +30,12 @@
 // negative flags set in the UI, measure / relative origin.
 // ============================================================================
 #include "gapp.h"
+#include "../core/gerber_set.h"
 #include "imgui_internal.h"
 #include <ole2.h>
 #include <shellapi.h>
 #include "gerber_gpu.h"
+#include "import_extras.h"   // board image pixels (stencil vs bare-board compare)
 #include "../app/board_render.h"
 #include "../app/commands.h"
 #include "../core/fileio.h"
@@ -59,6 +61,7 @@
 #include <map>
 #include <set>
 #include <unordered_map>
+#include <cctype>
 
 namespace pcbp::gui {
 HWND main_hwnd();   // shell.cpp
@@ -133,20 +136,7 @@ const std::vector<std::wstring>& role_names() {
     return v;
 }
 std::string role_name_u8(LayerRole r) { size_t i = (size_t)r; return i < role_names().size() ? U(role_names()[i]) : "Other"; }
-uint32_t role_color(LayerRole r, int n) {
-    switch (r) {
-    case LayerRole::Copper: return 0xFFD08A30;
-    case LayerRole::Paste: return 0xFFB8B8C0;
-    case LayerRole::Mask: return 0xFF3DA35D;
-    case LayerRole::Silk: return 0xFFF0F0E6;
-    case LayerRole::Assembly: return 0xFF4FB8E0;
-    case LayerRole::Drill: return 0xFFE05050;
-    case LayerRole::Outline: return 0xFFE8D84A;
-    default: break;
-    }
-    static const uint32_t cyc[] = {0xFFC08040, 0xFF8070E0, 0xFF40C0A0, 0xFFE070B0, 0xFFA0A040};
-    return cyc[n % 5];
-}
+uint32_t role_color(LayerRole r, int n) { return gset::role_color(r, n); }   // LLM_API G1: shared with the headless import
 std::string lower(std::string s) { for (auto& c : s) c = (char)std::tolower((unsigned char)c); return s; }
 // Menu item with a leading icon (keeps labels aligned with gui::menu_item()).
 void undo_toast(const std::string& msg) { toast(msg, ToastKind::Success, 4.5f, "Undo", [] { post_command(ID_EDIT_UNDO); }); }
@@ -166,7 +156,7 @@ gb::LayerGuess layer_guess(const GerberLayerRef& r) {
     return g;
 }
 void guess_role(GerberLayerRef& r, int n) {
-    gb::LayerGuess g = layer_guess(r);
+    gb::LayerGuess g = layer_guess(r);   // cached; same rule as gset::guess_role
     r.role = (LayerRole)std::clamp(g.role, 0, 7);
     r.side = g.side == 1 ? Side::Bottom : Side::Top;
     r.color = role_color(r.role, n);
@@ -756,6 +746,22 @@ private:
     int hl_layer_ = -1, hl_dcode_ = -1, hl_prev_layer_ = -1, hl_prev_dcode_ = -1;
     int sel_layer_ = -1;          // layer shown in the D-code panel
     std::map<std::string, bool> neg_;
+    // Screen blend per layer (view state): overlapping screened layers add up (magenta + green = white), like
+    // ViewMate's compare; 0 = the layer's own colour, else a view-only colour
+    std::map<std::string, uint32_t> screen_;
+    bool screened(int i) const { return screen_.count(doc->prj.layers[i].name) != 0; }
+    uint32_t screen_color(int i) const { auto it = screen_.find(doc->prj.layers[i].name); return it == screen_.end() || !it->second ? doc->prj.layers[i].color : it->second; }
+    // board image under the Gerbers (the project's registered board images): black-and-white with a threshold for
+    // the bare-board vs stencil / paste compare
+    bool img_show_ = false, img_bw_ = true, img_inv_ = false, img_screen_ = true;
+    int img_idx_ = 0;
+    float img_thr_ = 0.5f, img_alpha_ = 1.f;
+    uint32_t img_tint_ = 0xFF00E000;
+    gui::StaticTexture img_tex_;
+    uint64_t img_key_ = 0;
+    std::string img_err_;
+    void draw_board_image();
+    void board_image_popup();
     bool show_unused_ = false;
 
     Tool tool_ = Tool::Digitize;
@@ -1126,6 +1132,80 @@ void GerberWorkspace::zoom_at(double f, ImVec2 s) {
     dirty_ = true;
 }
 
+// ---- board image under the Gerbers ------------------------------------------------------------------------
+// The project's board image (Import > Board Image, registered in Board Images) in plot coordinates; after the
+// Gerbers are moved onto the plot, Gerber world = plot. Drawn as a 16 x 16 grid of its homography.
+void GerberWorkspace::draw_board_image() {
+    const auto& imgs = doc->prj.board_images;
+    if (imgs.empty()) return;
+    if (img_idx_ < 0 || img_idx_ >= (int)imgs.size()) img_idx_ = 0;
+    const BoardImage& bi = imgs[(size_t)img_idx_];
+    if (bi.px_w <= 0 || bi.px_h <= 0) return;
+    const uint64_t key = ((uint64_t)bi.revision << 32) ^ std::hash<std::string>()(bi.path) ^ (uint64_t)bi.data.size() ^ ((uint64_t)img_idx_ << 56);
+    if (!img_tex_.imgui_id() || key != img_key_) {
+        img_tex_.release();
+        img_err_.clear();
+        int w = 0, h = 0;
+        const std::vector<uint8_t>* px = nullptr;
+        if (app::board_image_pixels(bi, 8192, w, h, px, img_err_) && px && img_tex_.create(w, h, px->data(), w * 4)) { img_tex_.w = w; img_tex_.h = h; }
+        img_key_ = key;
+    }
+    if (!img_tex_.imgui_id()) return;
+    constexpr int N = 16;
+    std::vector<Vec2> grid((size_t)(N + 1) * (N + 1));
+    for (int j = 0; j <= N; ++j)
+        for (int i = 0; i <= N; ++i) grid[(size_t)j * (N + 1) + i] = h_apply(bi.H, Vec2{bi.px_w * (double)i / N, bi.px_h * (double)j / N});
+    gpu_.draw_image(img_tex_.imgui_id(), grid.data(), N, img_tint_, img_alpha_, img_bw_ ? img_thr_ : -1.f, img_inv_, img_screen_);
+}
+
+void GerberWorkspace::board_image_popup() {
+    section_header("BOARD IMAGE");
+    const auto& imgs = doc->prj.board_images;
+    if (imgs.empty()) { ImGui::TextDisabled("No board image: File > Import > Board Image."); return; }
+    if (ImGui::Checkbox("Show under the Gerbers", &img_show_)) dirty_ = true;
+    if (imgs.size() > 1) {
+        ImGui::SetNextItemWidth(S(240));
+        if (img_idx_ >= (int)imgs.size()) img_idx_ = 0;
+        if (ImGui::BeginCombo("Image", imgs[(size_t)img_idx_].name.c_str())) {
+            for (int k = 0; k < (int)imgs.size(); ++k) if (ImGui::Selectable(imgs[(size_t)k].name.c_str(), k == img_idx_)) { img_idx_ = k; dirty_ = true; }
+            ImGui::EndCombo();
+        }
+    }
+    if (ImGui::Checkbox("Black and white", &img_bw_)) dirty_ = true;
+    if (img_bw_) {
+        ImGui::SetNextItemWidth(S(240));
+        if (ImGui::SliderFloat("Threshold", &img_thr_, 0.02f, 0.98f, "%.2f")) dirty_ = true;
+        if (ImGui::Checkbox("Invert (dark pads)", &img_inv_)) dirty_ = true;
+        float c[3] = {((img_tint_ >> 16) & 255) / 255.f, ((img_tint_ >> 8) & 255) / 255.f, (img_tint_ & 255) / 255.f};
+        if (ImGui::ColorEdit3("Colour", c, ImGuiColorEditFlags_NoInputs)) {
+            img_tint_ = 0xFF000000u | (uint32_t)std::lround(c[0] * 255) << 16 | (uint32_t)std::lround(c[1] * 255) << 8 | (uint32_t)std::lround(c[2] * 255);
+            dirty_ = true;
+        }
+    }
+    ImGui::SetNextItemWidth(S(240));
+    if (ImGui::SliderFloat("Opacity", &img_alpha_, 0.1f, 1.f, "%.2f")) dirty_ = true;
+    if (ImGui::Checkbox("Screen blend", &img_screen_)) dirty_ = true;
+    if (!img_err_.empty()) ImGui::TextColored(ImVec4(1, 0.4f, 0.3f, 1), "%s", img_err_.c_str());
+    ImGui::Separator();
+    if (button("Bare board vs stencil", Icon::Compare, true)) {
+        // the scan in green, the paste / stencil layers screened in magenta: white = opening on a pad, green = a pad
+        // with no opening, magenta = an opening with no pad
+        img_show_ = img_bw_ = img_screen_ = true;
+        img_tint_ = 0xFF00FF00u;
+        screen_.clear();
+        int n = 0;
+        for (int i = 0; i < nlayers(); ++i) {
+            GerberLayerRef& r = doc->prj.layers[i];
+            if (r.role == LayerRole::Paste && r.visible) { screen_[r.name] = 0xFFFF00FFu; ++n; }
+        }
+        gui::status(n ? "White = stencil opening on a pad; green = pad with no opening; magenta = opening with no pad. Adjust the threshold until the pads are solid."
+                      : "No paste layer found: right-click the stencil / paste layer > Screen Blend, and give it magenta.", n ? ToastKind::Info : ToastKind::Warning);
+        dirty_ = true;
+    }
+    ImGui::TextDisabled("Register the image in Board Images (fiducials / pads) first.");
+    if (button("Board Images...", Icon::Image)) { app::DocPtr d = doc; gui::defer([d]() { app::dlg_board_images(gui::main_hwnd(), *d); }); }
+}
+
 void GerberWorkspace::render_scene() {
     auto t0 = std::chrono::steady_clock::now();
     const int W = std::max(8, (int)size_.x), H = std::max(8, (int)size_.y);
@@ -1143,11 +1223,13 @@ void GerberWorkspace::render_scene() {
                 // R11 P1-03: the row at the TOP of the list is drawn LAST (on top); dragging a row up
                 // brings that layer forward. Same rule in render_d2d() and in picking.
                 const int nvis = (int)std::count_if(doc->prj.layers.begin(), doc->prj.layers.end(), [](auto& l) { return l.visible; });
+                if (img_show_) draw_board_image();
                 for (int i = nlayers() - 1; i >= 0; --i) {
                     const GerberLayerRef& r = doc->prj.layers[i];
                     if (!r.visible || !glayer(i) || !cache(i).mesh) continue;
-                    const float alpha = nvis > 1 ? 0.78f : 1.f;
-                    gpu_.draw_layer(*cache(i).mesh, lx(i), r.color | 0xFF000000u, alpha, fill_, negative(i) != glayer(i)->negative);
+                    const bool scr = screened(i);
+                    const float alpha = scr ? 1.f : nvis > 1 ? 0.78f : 1.f;
+                    gpu_.draw_layer(*cache(i).mesh, lx(i), (scr ? screen_color(i) : r.color) | 0xFF000000u, alpha, fill_, negative(i) != glayer(i)->negative, scr);
                 }
             }
             if (hl_layer_ >= 0 && hl_dcode_ >= 0 && glayer(hl_layer_) && cache(hl_layer_).mesh) {
@@ -2950,6 +3032,23 @@ void GerberWorkspace::layer_menu_items(int i) {
     if (imenu("Apertures (D-codes)...", Icon::Report)) { int k = i; gui::defer([this, k]() { show_apertures(k); }); }
     if (imenu("Show Hidden Graphics", Icon::Eye)) show_hidden(i, false);
     if (imenu("Compare With Pad Source Layer", Icon::Compare, nullptr, false, act_ >= 0 && act_ != i)) { cmp_a_ = act_; cmp_b_ = i; compare_ = true; dirty_ = true; }
+    {   // Screen blend: the ViewMate compare (two layers in complementary colours: overlap white, a miss stays coloured)
+        const bool sc = screened(i);
+        if (imenu("Screen Blend (overlaps add up)", Icon::Compare, nullptr, sc)) {
+            for (int q : tg) { if (sc) screen_.erase(doc->prj.layers[q].name); else screen_[doc->prj.layers[q].name] = 0; }
+            dirty_ = true;
+        }
+        if (imenu("Screen Compare With Active Layer (magenta / green)", Icon::Compare, nullptr, false, act_ >= 0 && act_ != i)) {
+            screen_.clear();
+            screen_[doc->prj.layers[act_].name] = 0xFFFF00FFu;
+            screen_[doc->prj.layers[i].name] = 0xFF00FF00u;
+            doc->prj.layers[act_].visible = doc->prj.layers[i].visible = true;
+            gui::status("Screen compare: white = on both layers, magenta = only on " + doc->prj.layers[act_].name + ", green = only on " +
+                        doc->prj.layers[i].name + ". Hide the other layers to see just these two.", ToastKind::Info);
+            dirty_ = true;
+        }
+        if (!screen_.empty() && imenu("Clear Screen Blend (all layers)", Icon::Undo)) { screen_.clear(); dirty_ = true; }
+    }
     ImGui::Separator();
     if (imenu("Remove Layer", Icon::Delete)) {
         int k = i;
@@ -6151,6 +6250,9 @@ void GerberWorkspace::draw_vbar(float w, float h) {
         if (button("Compare", Icon::Compare, true) && cmp_a_ != cmp_b_) { compare_ = true; dirty_ = true; ImGui::CloseCurrentPopup(); }
         ImGui::EndPopup();
     }
+    if (ib("##gimg", Icon::Image, "Board image under the Gerbers (bare-board scan vs stencil / paste, Screen blend)", img_show_, !doc->prj.board_images.empty()))
+        ImGui::OpenPopup("##gimgpop");
+    if (ImGui::BeginPopup("##gimgpop")) { board_image_popup(); ImGui::EndPopup(); }
     sep();
     if (ib("##gtop", Icon::ViewTop, "View from top (not flipped)", !mirror_ && !mirror_y_)) { mirror_ = mirror_y_ = false; dirty_ = true; }
     if (ib("##gbot", Icon::ViewBottom, "Flip view left / right (X) for bottom-side work (F)", mirror_)) { mirror_ = !mirror_; dirty_ = true; }
@@ -6410,14 +6512,7 @@ void test_drop_post(HWND hwnd, const std::wstring& list) {
     GlobalUnlock(g);
     SendMessageW(hwnd, WM_DROPFILES, (WPARAM)g, 0);   // the subclass calls DragFinish (frees g)
 }
-std::string stem_key(const std::string& path) {
-    std::string s = lower(file_stem(path));
-    for (const char* suf : {"_apertures", "-apertures", "_aperture", ".apr", "_apt", "-apt", ".apt", "_rep", "_list"}) {
-        size_t p = s.rfind(suf);
-        if (p != std::string::npos && p + std::strlen(suf) == s.size()) s = s.substr(0, p);
-    }
-    return s;
-}
+std::string stem_key(const std::string& path) { return gset::aperture_stem_key(path); }
 
 } // namespace
 } // namespace pcbp::gui
@@ -6601,22 +6696,7 @@ bool dlg_import_gerber(HWND, Doc& d) {
         // bottom assy/silk/mask/paste/copper -> inner (deepest first) -> top copper/paste/mask/silk/assy
         // -> other -> outline -> drill (drawn last = on top). Error rows sink to the end.
         if (first_new < (int)st.E.size()) {
-            auto rank = [](const Ent& e) -> int {
-                if (!e.err.empty()) return 10000;
-                const GerberLayerRef& l = e.r;
-                const gb::LayerGuess g = gb::guess_layer_function(l.path, l.content.substr(0, 8192));
-                const bool inner = g.side == 2;
-                switch (l.role) {
-                case LayerRole::Drill: return 9000;
-                case LayerRole::Outline: return 8000;
-                case LayerRole::Other: return 7000;
-                default: break;
-                }
-                auto sub = [](LayerRole r) { switch (r) { case LayerRole::Assembly: return 0; case LayerRole::Silk: return 1; case LayerRole::Mask: return 2; case LayerRole::Paste: return 3; case LayerRole::Copper: return 4; default: return 5; } };
-                if (inner) return 2000 + (99 - std::min(99, g.inner)) ;
-                if (l.side == Side::Bottom) return 1000 + sub(l.role);
-                return 3000 + (5 - sub(l.role));
-            };
+            auto rank = [](const Ent& e) -> int { return e.err.empty() ? gset::stack_rank(e.r) : 10000; };
             std::vector<std::pair<int, int>> keys;
             for (int i = first_new; i < (int)st.E.size(); ++i) keys.push_back({rank(st.E[i]), i});
             std::stable_sort(keys.begin(), keys.end(), [](auto& a, auto& b) { return a.first < b.first; });

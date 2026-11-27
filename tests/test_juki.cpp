@@ -505,7 +505,8 @@ static void check_r13() {
         CHECK(pj::write_hlc_variant(j, pj::HlcVariant::H8H, q, err) && pj::parse_hlc(q, p, err) &&
               p.mark_sets.size() == 4 && p.placements[7].mark_set == 3, "local set index 3");
     }
-    // part-name collisions after conversion / truncation: deterministic suffix
+    // part-name collisions after conversion / truncation: deterministic; clashing long numbers keep their beginning
+    // and get the end that tells them apart (both of them, so neither looks like the other's plain truncation)
     {
         MachineJob j = job;
         j.parts.clear(); j.placements.resize(4);
@@ -513,7 +514,8 @@ static void check_r13() {
         for (int i = 0; i < 4; ++i) { JobPart pp; pp.part = pn[i]; j.parts.push_back(pp); j.placements[i].part = pn[i]; }
         std::vector<uint8_t> q; pj::HlcWriteInfo w; pj::HlcParsed p;
         CHECK(pj::write_hlc_variant(j, pj::HlcVariant::H8H, q, err, &w) && pj::parse_hlc(q, p, err), "collide write %s", err.c_str());
-        CHECK(w.renamed.size() == 2, "renamed %zu", w.renamed.size());
+        CHECK(w.renamed.size() == 3, "renamed %zu", w.renamed.size());
+        CHECK(p.components.size() == 4 && p.components[2] == "LONGPARTNUMBER-ABC~1" && p.components[3] == "LONGPARTNUMBER-ABC~2", "tail names");
         std::set<std::string> shorts(p.components.begin(), p.components.end());
         CHECK(shorts.size() == 4, "unique short names");
         for (auto& r : w.renamed) std::printf("  renamed '%s' -> '%s'\n", r.first.c_str(), r.second.c_str());
@@ -522,7 +524,7 @@ static void check_r13() {
         CHECK(q == q2, "collision deterministic");
         std::vector<ExportIssue> iss; j.machine = "juki.h8h"; pj::check_job(j, iss);
         int nw = 0; for (auto& i : iss) nw += i.sev == ExportIssue::Warning && i.msg.find("is written as") != std::string::npos;
-        CHECK(nw == 2, "check_job rename warnings %d", nw);
+        CHECK(nw == 3, "check_job rename warnings %d", nw);
     }
     // line info: originator -> line name, no app text in the comment (P1-06)
     {

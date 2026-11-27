@@ -191,10 +191,10 @@ int main() {
     CHECK(sniff_folder("top.gtl", B(kGerber)) == "Original Circuit");
     CHECK(sniff_folder("1.l2t", B(kGerber)) == "Original Circuit");     // unknown extension, content wins
     CHECK(sniff_folder("drill.drl", B(kDrill)) == "Original Circuit");
-    CHECK(sniff_folder("bom.csv", B(kBom)) == "Other");
-    CHECK(propose_category("bom.csv", B(kBom)).tags == std::vector<std::string>{"BOM"});
+    CHECK(sniff_folder("bom.csv", B(kBom)) == "BOM");   // R25: BOM category
+    CHECK(propose_category("bom.csv", B(kBom)).cat == Category::Bom && propose_category("bom.csv", B(kBom)).tags.empty());
     CHECK((import_kinds("bom.csv", B(kBom)) & ImpBom) != 0);
-    CHECK(sniff_folder("BOM GRU6.xlsx", B("PK\x03\x04....")) == "Other");
+    CHECK(sniff_folder("BOM GRU6.xlsx", B("PK\x03\x04....")) == "BOM");
     CHECK(sniff_folder("re rev B.eml", B(kEml)) == "Email");
     CHECK(sniff_folder("mail.txt", B(kEml)) == "Email");
     CHECK(sniff_folder("Outlook.msg", B("\xD0\xCF\x11\xE0")) == "Email");
@@ -246,14 +246,14 @@ int main() {
 
     // ==== R22 (REVIEW_V21 §12): categories, migration, sniffing proposals, drop confirm sheet ====
     {   // category names
-        CHECK(kCategoryCount == 9);
+        CHECK(kCategoryCount == 12);
         CHECK(std::string(category_label(Category::Email)) == "Email / Correspondence");
         CHECK(std::string(category_folder(Category::Email)) == "Email");
         CHECK(std::string(category_folder(Category::Original)) == "Original Circuit");
         bool k = false;
         CHECK(category_from_name("Single Circuit", &k) == Category::Original && k);
         CHECK(category_from_name("Panelized Circuit") == Category::Panel);
-        CHECK(category_from_name("Bill of Materials") == Category::Other);
+        CHECK(category_from_name("Bill of Materials") == Category::Bom);
         CHECK(category_from_name("Datasheets") == Category::Other);
         CHECK(category_from_name("Drawings") == Category::Drawing);
         CHECK(category_from_name("Emails") == Category::Email);
@@ -299,7 +299,7 @@ int main() {
         DocumentRef* r = index_find(idx, "Single Circuit/top.gtl");
         CHECK(r && r->category == "Original Circuit" && r->note == "keep me" && r->tags == std::vector<std::string>{"rev A"});
         r = index_find(idx, "Bill of Materials/bom.csv");
-        CHECK(r && r->category == "Other" && r->tags == std::vector<std::string>{"BOM"} && r->note == "bom note");
+        CHECK(r && r->category == "BOM" && r->tags.empty() && r->note == "bom note");
         r = index_find(idx, "Datasheets/LM358.pdf");
         CHECK(r && r->category == "Other" && r->tags == std::vector<std::string>{"Datasheet"});
         CHECK(index_find(idx, "Panelized Circuit/panel.gko")->category == "Panel Gerbers");
@@ -307,14 +307,14 @@ int main() {
         CHECK(index_find(idx, "Drawings/assy.pdf")->category == "Drawing");
         CHECK(index_find(idx, "Customer/x.txt")->category == "Email / Correspondence");
         sync_index(idx, z);   // idempotent: no duplicate tags
-        CHECK(index_find(idx, "Bill of Materials/bom.csv")->tags.size() == 1);
+        CHECK(index_find(idx, "Bill of Materials/bom.csv")->tags.empty());
         auto lf = legacy_folders_in(z);
         CHECK(lf.size() == 7);   // all but Other
         Edit m;
         CHECK(plan_folder_migration(z, m));
         CHECK(m.rename.at("Single Circuit/top.gtl") == "Original Circuit/top (2).gtl");
         CHECK(m.rename.at("Single Circuit/gerbers/bot.gbl") == "Original Circuit/gerbers/bot.gbl");
-        CHECK(m.rename.at("Bill of Materials/bom.csv") == "Other/bom (2).csv");
+        CHECK(m.rename.at("Bill of Materials/bom.csv") == "BOM/bom.csv");
         CHECK(m.rename.at("Datasheets/LM358.pdf") == "Other/LM358.pdf");
         CHECK(m.rename.at("Emails/") == "Email/");
         CHECK(m.remove.empty());                     // a folder remove would take its files with it
@@ -332,8 +332,8 @@ int main() {
         sync_index(idx, z2, m.rename);
         r = index_find(idx, "Original Circuit/top (2).gtl");
         CHECK(r && r->note == "keep me" && r->category == "Original Circuit");
-        r = index_find(idx, "Other/bom (2).csv");
-        CHECK(r && r->note == "bom note" && r->tags == std::vector<std::string>{"BOM"} && r->category == "Other");
+        r = index_find(idx, "BOM/bom.csv");
+        CHECK(r && r->note == "bom note" && r->tags.empty() && r->category == "BOM");
         CHECK(index_find(idx, "Other/LM358.pdf")->tags == std::vector<std::string>{"Datasheet"});
         Edit none; CHECK(!plan_folder_migration(z2, none));
     }
@@ -420,7 +420,7 @@ int main() {
         CHECK(sh.rows[0].cat == Category::Original && sh.rows[0].p.gerber_set);
         CHECK(sh.rows[1].folder && sh.rows[1].files() == 2 && sh.rows[1].cat == Category::Panel && sh.rows[1].p.gerber_set);
         CHECK(sh.rows[2].cat == Category::Notes && sh.rows[3].cat == Category::Drawing && sh.rows[4].cat == Category::Email);
-        CHECK(sh.rows[5].cat == Category::Other && sh.rows[5].p.tags == std::vector<std::string>{"BOM"});
+        CHECK(sh.rows[5].cat == Category::Bom && sh.rows[5].p.tags.empty());
         CHECK(sh.included_files() == 7);
         int others = 0; for (auto& r : sh.rows) others += r.cat == Category::Other && r.p.why.empty();
         CHECK(others == 0);   // every proposal carries a reason
@@ -437,10 +437,18 @@ int main() {
         CHECK(added.count("Stencil/top.gtl"));
         CHECK(added.count("Panel Gerbers/Panel gerbers/a.gtl") && added.count("Panel Gerbers/Panel gerbers/sub/a.gko"));
         CHECK(added.count("Notes/notes.md"));
-        CHECK(added.count("Drawing/assy (2).pdf"));   // unique against the archive
-        CHECK(added.count("Other/bom.csv"));
+        CHECK(added.count("Drawing/assy.pdf"));       // R25: replaces the archived one, which becomes a version
+        CHECK(e.rename.size() == 1 && is_version_path(e.rename.begin()->second) && e.rename.begin()->first == "Drawing/assy.pdf");
+        CHECK(version_of(e.rename.begin()->second) == "Drawing/assy.pdf");
+        {   // without versions: a unique name as before
+            DropSheet nv = sh; nv.keep_versions = false;
+            Edit e2; CHECK(nv.build(&z, e2));
+            bool u = false; for (auto& a : e2.add) u |= a.name == "Drawing/assy (2).pdf";
+            CHECK(u && e2.rename.empty());
+        }
+        CHECK(added.count("BOM/bom.csv"));
         CHECK(added.size() == 6);                     // the e-mail row is excluded
-        CHECK(tags.size() == 1 && tags["Other/bom.csv"] == std::vector<std::string>{"BOM"});
+        CHECK(tags.empty());
         CHECK(per[(int)Category::Panel] == 2 && per[(int)Category::Stencil] == 1 && !per.count((int)Category::Email));
         CHECK(rewrite(sz, e, err));
         CHECK(unzip_ok(sz));
@@ -469,6 +477,132 @@ int main() {
         CHECK(s2 >= s1 && s2 - s1 <= 8);   // only the size digits differ
         Project p0;
         CHECK(project_to_json(p1, false).dump(-1).size() - project_to_json(p0, false).dump(-1).size() < 200);
+    }
+
+    // ---- R25: pack the project folder, versions, hashes, moving the originals
+    {
+        const fs::path jd = dir / "job";
+        fs::create_directories(jd / "Gerbers Rev B" / "drill");
+        fs::create_directories(jd / ".git");
+        auto put = [](const fs::path& p, const std::string& c) { FILE* f = std::fopen(p.string().c_str(), "wb"); std::fwrite(c.data(), 1, c.size(), f); std::fclose(f); };
+        const std::string jpg = std::string("\xFF\xD8\xFF\xE0", 4) + "jfif";
+        // stays next to the archive
+        for (const char* n : {"I-1-00-2.h8h", "I-1-00-2.H81", "I-1-00-2.H82", "I-1-00-2.iss", "I-1-00-2.i01", "OLD JOB.h8h", "I-1-00-2.cpf",
+                              "I-1-00-2.tbl"})
+            put(jd / n, "machine data");
+        put(jd / "I-1-00-2 405123 x25.xlsx", "PK\x03\x04 work order");
+        put(jd / "I-1-00-2.jpg", jpg);
+        // the project's own files and junk: not listed at all
+        for (const char* n : {"I-1-00-2.pcbp", "I-1-00-2.pcbp.autosave", "Thumbs.db", "~$bom.xlsx"}) put(jd / n, "x");
+        put(jd / ".git" / "HEAD", "ref");
+        // packed
+        put(jd / "Gerbers Rev B" / "top.gtl", kGerber);
+        put(jd / "Gerbers Rev B" / "bot.gbl", kGerber);
+        put(jd / "Gerbers Rev B" / "drill" / "drill.drl", kDrill);
+        put(jd / "Gerbers Rev B" / "Thumbs.db", "x");
+        put(jd / "design.tgz", std::string("\x1F\x8B\x08\x00", 4) + "odb");
+        put(jd / "schematic.pdf", "%PDF-1.4\nschematic rev A\n");
+        put(jd / "M1 BOM dump.csv", kBom);
+        put(jd / "build notes.txt", "bake 4h\n");
+        put(jd / "phone pic.jpg", jpg + "2");
+        const std::vector<std::string> proj = {"I-1-00-2"};
+        const std::string arch = "I-1-00-2.zip", azp = (jd / arch).string();
+        PackPlan pl = plan_pack(jd.string(), proj, arch, nullptr);
+        std::set<std::string> stays; for (auto& x : pl.stays) stays.insert(x.name);
+        CHECK(stays.size() == 10);
+        CHECK(stays.count("OLD JOB.h8h") && stays.count("I-1-00-2.H82") && stays.count("I-1-00-2 405123 x25.xlsx") && stays.count("I-1-00-2.jpg"));
+        std::map<std::string, Category> rows; for (auto& r : pl.sheet.rows) rows[r.name] = r.cat;
+        CHECK(rows.size() == 6);
+        CHECK(rows.count("Gerbers Rev B") && rows["Gerbers Rev B"] == Category::Original);
+        CHECK(rows["design.tgz"] == Category::Cad && rows["schematic.pdf"] == Category::Schematic && rows["M1 BOM dump.csv"] == Category::Bom);
+        CHECK(rows["build notes.txt"] == Category::Notes && rows["phone pic.jpg"] == Category::Image);
+        for (auto& r : pl.sheet.rows) if (r.folder) CHECK(r.files() == 3);   // Thumbs.db left out
+        CHECK(pl.already.empty() && pl.files() == 8);
+        // pack
+        Edit e; std::string err;
+        CHECK(pl.sheet.build(nullptr, e));
+        const auto hashes = hash_added(e);
+        CHECK(hashes.size() == 8);
+        CHECK(rewrite(azp, e, err) && unzip_ok(azp));
+        Zip z; CHECK(z.open_file(azp, err));
+        CHECK(verify_packed(z, e, err));
+        CHECK(has(z, "Original Circuit/Gerbers Rev B/drill/drill.drl") && has(z, "CAD/design.tgz") && has(z, "BOM/M1 BOM dump.csv"));
+        std::vector<DocumentRef> idx;
+        sync_index(idx, z);
+        CHECK(fill_hashes(idx, z, hashes) == 0);
+        for (auto& r : idx) CHECK(r.sha256.size() == 64 && r.sha256 == entry_sha256(z, z.items()[(size_t)z.find(r.path)]));
+        std::vector<std::string> bad;
+        CHECK(fill_hashes(idx, z, {}, &bad) == 0 && bad.empty());   // full check: every stored hash matches
+        // hashes survive the project file
+        Project pj; pj.documents = idx;
+        Project pj2; std::string je;
+        CHECK(project_from_json(project_to_json(pj, false), pj2, je) && pj2.documents.size() == idx.size() && pj2.documents[0].sha256 == idx[0].sha256);
+        // a second pack: everything is already archived
+        PackPlan p2 = plan_pack(jd.string(), proj, arch, &z);
+        CHECK(p2.sheet.rows.empty() && p2.already.size() == 8 && p2.stays.size() == 10);
+        // the schematic changes: re-adding replaces it and keeps the old one as a version
+        put(jd / "schematic.pdf", "%PDF-1.4\nschematic rev B\n");
+        PackPlan p3 = plan_pack(jd.string(), proj, arch, &z);
+        CHECK(p3.sheet.rows.size() == 1 && p3.sheet.rows[0].name == "schematic.pdf");
+        Edit e3; std::vector<std::string> skipped;
+        CHECK(p3.sheet.build(&z, e3, nullptr, nullptr, &skipped) && skipped.empty());
+        CHECK(e3.add.size() == 1 && e3.add[0].name == "Schematic/schematic.pdf" && e3.rename.size() == 1);
+        CHECK(rewrite(azp, e3, err) && unzip_ok(azp));
+        Zip z3; CHECK(z3.open_file(azp, err));
+        std::vector<uint8_t> d;
+        CHECK(z3.read("Schematic/schematic.pdf", d, err) && std::string(d.begin(), d.end()).find("rev B") != std::string::npos);
+        auto vs = versions_of(z3, "Schematic/schematic.pdf");
+        CHECK(vs.size() == 1 && z3.read(*vs[0], d, err) && std::string(d.begin(), d.end()).find("rev A") != std::string::npos);
+        CHECK(vs[0]->name.rfind(".versions/Schematic/schematic @", 0) == 0 && vs[0]->name.size() > 4 && vs[0]->name.substr(vs[0]->name.size() - 4) == ".pdf");
+        sync_index(idx, z3);
+        DocumentRef* sr = index_find(idx, "Schematic/schematic.pdf");
+        CHECK(sr && sr->sha256.empty());   // content changed: hash recomputed later
+        // the same file again (identical content): skipped
+        {
+            DropSheet again = make_drop_sheet({(jd / "schematic.pdf").string()});
+            Edit e4; std::vector<std::string> sk;
+            CHECK(!again.build(&z3, e4, nullptr, nullptr, &sk) && sk.size() == 1 && sk[0] == "Schematic/schematic.pdf");
+        }
+        // restore the old version: they swap
+        Edit er; CHECK(plan_restore(z3, vs[0]->name, er) && er.rename.size() == 2);
+        CHECK(rewrite(azp, er, err) && unzip_ok(azp));
+        Zip z4; CHECK(z4.open_file(azp, err));
+        CHECK(z4.read("Schematic/schematic.pdf", d, err) && std::string(d.begin(), d.end()).find("rev A") != std::string::npos);
+        auto vs4 = versions_of(z4, "Schematic/schematic.pdf");
+        CHECK(vs4.size() == 1 && z4.read(*vs4[0], d, err) && std::string(d.begin(), d.end()).find("rev B") != std::string::npos);
+        // versions follow their file: rename, folder move, delete
+        {
+            Edit en; en.rename["Schematic/schematic.pdf"] = "Drawing/sch main.pdf";
+            carry_versions(z4, en);
+            CHECK(en.rename.size() == 2);
+            std::string vto; for (auto& [a, b] : en.rename) if (is_version_path(a)) vto = b;
+            CHECK(vto.rfind(".versions/Drawing/sch main @", 0) == 0 && version_of(vto) == "Drawing/sch main.pdf");
+            CHECK(rewrite(azp, en, err));
+            Zip z5; CHECK(z5.open_file(azp, err) && versions_of(z5, "Drawing/sch main.pdf").size() == 1 && versions_of(z5, "Schematic/schematic.pdf").empty());
+            Edit ef; ef.rename["Drawing/"] = "Old Drawing/";
+            carry_versions(z5, ef);
+            CHECK(ef.rename.size() == 2);
+            Edit ed; ed.remove.insert("Drawing/sch main.pdf");
+            carry_versions(z5, ed);
+            CHECK(ed.remove.size() == 2);
+            CHECK(rewrite(azp, ed, err));
+            Zip z6; CHECK(z6.open_file(azp, err));
+            int nv = 0; for (auto& it : z6.items()) nv += is_version_path(it.name);
+            CHECK(nv == 0);
+        }
+        // move the packed originals to _packed/: the folder structure is kept, emptied folders go, the sidecars stay
+        std::vector<std::string> moved, failed;
+        for (auto& a : e.add) moved.push_back(a.disk);
+        CHECK(move_packed(jd.string(), moved, failed) == 8 && failed.empty());
+        CHECK(fs::exists(jd / "_packed" / "Gerbers Rev B" / "drill" / "drill.drl") && fs::exists(jd / "_packed" / "design.tgz"));
+        CHECK(fs::exists(jd / "Gerbers Rev B" / "Thumbs.db") && !fs::exists(jd / "Gerbers Rev B" / "drill"));
+        CHECK(fs::exists(jd / "I-1-00-2.h8h") && fs::exists(jd / "I-1-00-2 405123 x25.xlsx") && fs::exists(jd / "I-1-00-2.jpg"));
+        // the packed folder is never packed again
+        put(jd / "late.pdf", "%PDF-1.4\nlate\n");
+        PackPlan p5 = plan_pack(jd.string(), proj, arch, &z4);
+        CHECK(p5.sheet.rows.size() == 1);   // the Gerbers folder only holds Thumbs.db now: nothing to pack there
+        int late = 0; for (auto& r : p5.sheet.rows) late += r.name == "late.pdf";
+        CHECK(late == 1);
     }
 
     fs::remove_all(dir);

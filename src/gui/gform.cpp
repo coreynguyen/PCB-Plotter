@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cwchar>
+#include <cmath>
 
 namespace pcbp::gui {
 bool pump_and_render();     // shell.cpp: one message pump + frame; false if WM_QUIT

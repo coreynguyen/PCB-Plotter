@@ -296,6 +296,7 @@ bool build_project(NProgram& np, Project& prj, const ImportOptions& opt, ImportR
     ms.exporter_id = np.exporter;
     ms.side = mp.side;
     ms.single_board = !np.panel;
+    ms.place_at_origin = true;   // R25: a machine program's points are already where the machine places; never shifted by a package's lands
     ms.force_angle_calc = true;
     ms.options["juki.transport"] = np.rl ? "RL" : "LR";
     ms.options["juki.fixed_rail"] = np.back ? "back" : "front";

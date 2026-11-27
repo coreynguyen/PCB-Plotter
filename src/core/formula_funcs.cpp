@@ -13,6 +13,7 @@
 #include <numeric>
 #include <random>
 #include <set>
+#include <cmath>
 
 namespace pcbp::sheet {
 

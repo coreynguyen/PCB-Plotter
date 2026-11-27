@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 // ============================================================================
 // juki_writer.h — JUKI HLC machine-program exporter (H4H / H5H / H7H / H8H,
 // plus the per-machine E41..E46 / E51 binary variants).
@@ -52,6 +53,20 @@ enum class HlcFormat { H4H, H5H, H7H, H8H };
 // The project keeps the Unicode text; only the written bytes are converted.
 std::string legacy_text(const std::string& utf8, int* changed = nullptr);
 
+// Part names of a machine program: the 20-character name field and the long-name field (60) of every part, in
+// order, unique (case-insensitive) across the program. A part number of up to 20 characters is its own name. A
+// longer one keeps its first 20 characters when no other name of the program has them; the beginning of an SMD
+// part number identifies the part (the end is mostly packaging), so on a clash the name keeps as much of the
+// beginning as it can, then "~" and the shortest end of the part number that makes it unique
+// ("ABCDEFGHIJKLMNOPQRSTUV-TR" -> "ABCDEFGHIJKLMNOPQ~TR"), else "~" and a number. preferred[i] (optional): the
+// name the part already has in the component DB; used when it is free.
+struct MachineName {
+    std::string name;   // <= 20 characters
+    std::string full;   // long-name field (legacy text, <= 60)
+    enum How { Same, Truncated, Renamed } how = Same;
+};
+std::vector<MachineName> machine_names(const std::vector<std::string>& parts, const std::vector<std::string>& preferred = {});
+
 // Full variant list. Values 0..12 are CircuitCAM's internal format code
 // (machine-setup +152); H8H is not produced by CircuitCAM (see spec).
 enum class HlcVariant : int {
@@ -89,14 +104,18 @@ struct HlcWriteInfo {
     int marks = 0;                       // board / circuit marks written (max 3)
     double ckt_x = 0, ckt_y = 0, ckt_w = 0, ckt_h = 0;   // circuit outline, placement coords
     int outside = 0;                     // placements flagged outside the circuit (+31 bit5)
+    int comps_researched = 0;            // H8H components filled from the component DB (research hook)
     int comps_without_size = 0;          // H7H/H8H component records with no outline
     int comps_size_from_pads = 0;        // R24a: outline from the lead / pad extent (package has no real body outline)
     int comps_without_height = 0;        // R24a: no height in the CAD / BOM / package data (+89 left 0, flag b3 clear)
     int text_converted = 0;              // text fields that needed ANSI transliteration
-    // Part names renamed because two different part numbers became identical after
-    // ANSI conversion / 20-char truncation: {original, written}. Deterministic
-    // (job.parts order; first keeps the name, later ones get ~1, ~2, ...).
+    // Part names changed so every name stays unique (machine_names): {original, written}. Deterministic.
     std::vector<std::pair<std::string, std::string>> renamed;
+    // part numbers longer than 20 characters written under their first 20 (full number in the long name)
+    std::vector<std::pair<std::string, std::string>> truncated;
+    // H8H machine data by source: the component DB (comps_researched), a package-library profile, built-in rules
+    int comps_from_library = 0, comps_from_rules = 0;
+    std::vector<std::pair<std::string, std::string>> generated;   // {part, "library: <profile>" / "rules: ..."}
     std::vector<std::string> notes;
 };
 
@@ -124,6 +143,16 @@ std::string marks_text(const MarkSelection& m);   // "FID1 (#1, X 1.000, Y 2.000
 
 bool write_hlc(const MachineJob& job, HlcFormat fmt,
                std::vector<uint8_t>& out, std::string& err, HlcWriteInfo* info = nullptr);
+// H8H research hook (set by the application): fill JobPart::h8h_* for one part, true when it did; sets
+// h8h_source "library" (+ h8h_note: the profile) when the data came from a package-library profile, and h8h_name to
+// the part's DB name. Parts the hook does not fill get the built-in rules (io/juki_autopart) unless the job option
+// "juki.autopart" is "off". Neither runs when "juki.research" is "off".
+using H8hResearchHook = std::function<bool(JobPart&)>;
+void set_h8h_research_hook(H8hResearchHook hook);
+bool h8h_research_available();
+// The built-in rules (registered by io/juki_autopart.cpp when it is linked; sets h8h_note to what was assumed).
+void set_h8h_autopart(H8hResearchHook rules);
+bool h8h_autopart_available();
 bool write_hlc_variant(const MachineJob& job, HlcVariant v,
                        std::vector<uint8_t>& out, std::string& err, HlcWriteInfo* info = nullptr);
 
@@ -198,5 +227,17 @@ bool variant_from_exporter(const std::string& exporter_id, HlcVariant& v);
 // at static-init time, so validate_for_export() runs it for every JUKI setup.
 void check_job(const MachineJob& job, std::vector<ExportIssue>& out);
 bool read_hlc_summary(const std::vector<uint8_t>& data, std::string& report);
+
+// Merge a researched component record (`db`, what the database read produced) into the program's record `rec`
+// (block 4, 1822 B), the way the editor's Research does: the identity, feeder slot assignment, placement counters and
+// long-name fields stay as the program had them; outline, class, feeder/tape, nozzle, laser, vision, speeds and the
+// rest come from `db`; the comment (+47, 30 characters, line breaks dropped) is taken from `db` and repeated at
+// +1205. Sets the researched mark (+148).
+void research_merge_b4(uint8_t* rec, const uint8_t* db);
+
+// Move a part's element lists (block 19 header, groups 170 B, elements 112 B, arrays 3142 B, indices local to the
+// part) to program positions: groups from g0, elements from e0, arrays from a0.
+void h8h_relocate_elements(std::vector<uint8_t>& b19, std::vector<uint8_t>& groups, std::vector<uint8_t>& elements,
+                           std::vector<uint8_t>& arrays, uint16_t g0, uint16_t e0, uint16_t a0);
 
 } // namespace pcbp::juki

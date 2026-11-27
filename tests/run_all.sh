@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 B=build/tests; mkdir -p $B
 CXX="g++ -std=c++20 -O1 -Isrc -Isdk"
 SHEET="$(ls src/core/sheet*.cpp src/core/formula*.cpp | tr '\n' ' ')"
-CORE="src/core/project.cpp src/core/board_image.cpp src/core/project_io.cpp src/core/json.cpp src/core/fileio.cpp src/core/machine_job.cpp src/core/plot_align.cpp src/core/arrays.cpp src/core/machine_assign.cpp"  # R24b machine_assign (machine_job uses it)
+CORE="src/core/project.cpp src/core/board_image.cpp src/core/project_io.cpp src/core/json.cpp src/core/fileio.cpp src/core/machine_job.cpp src/core/plot_align.cpp src/core/arrays.cpp src/core/machine_assign.cpp src/core/sha256.cpp"  # R24b machine_assign (machine_job uses it)
 $CXX tests/test_jet.cpp src/io/jet_mdb.cpp src/core/fileio.cpp -o $B/test_jet
 $CXX tests/test_gerber.cpp src/io/gerber.cpp src/io/digitize.cpp $CORE -o $B/test_gerber
 $CXX tests/test_importers.cpp src/io/text_import.cpp src/io/text_table.cpp src/io/centroid_import.cpp src/io/bom_import.cpp src/io/gencad.cpp src/io/ipc356.cpp src/io/io_util.cpp $CORE -o $B/test_importers
@@ -16,6 +16,8 @@ $CXX tests/test_panelize.cpp src/core/panelize.cpp src/core/project.cpp -o $B/te
 $CXX tests/test_arrays.cpp src/core/panelize.cpp $CORE -o $B/test_arrays   # R22 REVIEW_V21 §1-§3: linked instances, per-instance outline checks, units, delete array, no generated outlines
 $CXX tests/test_plot_align.cpp src/core/panelize.cpp src/io/juki_writer.cpp $CORE -o $B/test_plot_align
 $CXX tests/test_juki.cpp src/io/juki_writer.cpp $CORE -o $B/test_juki
+$CXX tests/test_place_centre.cpp $CORE -o $B/test_place_centre   # R25 placements at the centre of the lands
+$CXX tests/test_recentre.cpp src/io/recentre.cpp src/io/pnp_program.cpp src/io/juki_writer.cpp $CORE -o $B/test_recentre   # R25 (needs a program + its project as arguments; skips without)
 $CXX tests/test_cc_archive.cpp src/io/cc_archive.cpp src/io/inflate.cpp $CORE -o $B/test_cc_archive
 if [ -f tests/test_plugins.cpp ]; then
   $CXX tests/test_plugins.cpp src/plugins/builtin_plugins.cpp src/plugins/juki_import_plugin.cpp src/plugins/cad_formats_v2.cpp src/plugins/viewmate_plugin.cpp src/plugins/plugin_registry.cpp $(ls src/io/*.cpp) $SHEET $CORE -o $B/test_plugins
@@ -27,6 +29,8 @@ $CXX tests/test_juki_import.cpp src/plugins/builtin_plugins.cpp src/plugins/juki
 $CXX tests/test_pnp_program.cpp src/io/pnp_program.cpp src/io/juki_writer.cpp $CORE -o $B/test_pnp_program
 $CXX tests/test_cad_v2.cpp src/plugins/builtin_plugins.cpp src/plugins/juki_import_plugin.cpp src/plugins/cad_formats_v2.cpp src/plugins/viewmate_plugin.cpp src/plugins/plugin_registry.cpp $(ls src/io/*.cpp) $SHEET $CORE -o $B/test_cad_v2
 $CXX tests/test_flexdb.cpp src/plugins/builtin_plugins.cpp src/plugins/juki_import_plugin.cpp src/plugins/cad_formats_v2.cpp src/plugins/viewmate_plugin.cpp src/plugins/plugin_registry.cpp $(ls src/io/*.cpp) $SHEET $CORE -o $B/test_flexdb
+$CXX tests/test_flex_teach.cpp $(ls src/io/*.cpp) $SHEET $CORE -o $B/test_flex_teach
+$CXX tests/test_juki_research.cpp $(ls src/io/*.cpp) $SHEET $CORE -o $B/test_juki_research
 $CXX tests/test_origin.cpp src/plugins/builtin_plugins.cpp src/plugins/juki_import_plugin.cpp src/plugins/cad_formats_v2.cpp src/plugins/viewmate_plugin.cpp src/plugins/plugin_registry.cpp $(ls src/io/*.cpp) $SHEET $CORE -o $B/test_origin
 $CXX tests/test_sheet.cpp $SHEET src/io/xlsx.cpp src/io/deflate.cpp src/io/archive.cpp src/io/inflate.cpp src/io/xml_lite.cpp src/io/text_import.cpp src/io/text_table.cpp src/io/io_util.cpp src/core/fileio.cpp src/core/json.cpp -o $B/test_sheet
 $CXX -O2 tests/test_sheet_engine.cpp $SHEET src/io/xlsx.cpp src/io/ods.cpp src/io/deflate.cpp src/io/archive.cpp src/io/inflate.cpp src/io/xml_lite.cpp src/io/text_import.cpp src/io/text_table.cpp src/io/io_util.cpp src/core/fileio.cpp src/core/json.cpp -o $B/test_sheet_engine

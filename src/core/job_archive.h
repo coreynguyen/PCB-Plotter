@@ -72,8 +72,10 @@ bool should_store(const std::string& name);
 // --- R22 categories (specs/REVIEW_V21.md §12) ---------------------------------
 // A category is the top folder of an entry inside the job archive. Files outside a category folder (top level,
 // custom folders) take the category stored in the index ("Other" when none).
-enum class Category : int { Original = 0, Panel, Stencil, Schematic, Drawing, Image, Email, Notes, Other };
-constexpr int kCategoryCount = 9;
+// R25: CAD (ODB++ / CAD / placement data), BOM (bills of materials) and Machine programs added; categories are stored
+// by label, so the numbering may change.
+enum class Category : int { Original = 0, Panel, Stencil, Cad, Bom, Programs, Schematic, Drawing, Image, Email, Notes, Other };
+constexpr int kCategoryCount = 12;
 const char* category_label(Category c);     // "Original Circuit", "Panel Gerbers", ..., "Email / Correspondence", ...
 const char* category_folder(Category c);    // archive top folder; = label except Email ("Email": no '/' in a folder)
 // Label, folder, or a legacy (R19-R21) folder / category name -> category. known = false: not recognised (-> Other).
@@ -134,13 +136,66 @@ struct DropRow {
 struct DropSheet {
     std::vector<DropRow> rows;
     int target = -1;                    // category the files were dropped on (-1: the list / anywhere)
+    // R25 versions: a file whose archive name exists already replaces it when its content differs, and the old one
+    // moves to ".versions/" (version_path); identical content is skipped. false: the new file gets "name (2)".
+    bool keep_versions = true;
     int included_files() const;
     void set_all(Category c);
     // Archive names "<category folder>/<name>" (folders keep their name + tree), unique against `z` and each other.
     // tags: archive name -> suggested tags to put in the index after the rewrite. per_cat: files per category.
+    // skipped (optional): archive names left out because the archive holds the same content there already.
     bool build(const Zip* z, Edit& e, std::map<std::string, std::vector<std::string>>* tags = nullptr,
-               std::map<int, int>* per_cat = nullptr) const;
+               std::map<int, int>* per_cat = nullptr, std::vector<std::string>* skipped = nullptr) const;
 };
+
+// --- R25 versions -----------------------------------------------------------------------------------------------
+// Old versions live under ".versions/" with the date the replaced copy was archived:
+// "Drawing/assy.pdf" (archived 2026-11-19 10:12) -> ".versions/Drawing/assy @2026-11-19 1012.pdf".
+constexpr const char* kVersionsFolder = ".versions/";
+bool is_version_path(const std::string& path);
+std::string version_path(const Item& old, const Zip* z, const std::set<std::string>& taken = {});
+// The current file a version belongs to ("" when `path` is not a version) and the stored versions of `path`, newest first.
+std::string version_of(const std::string& path);
+std::vector<const Item*> versions_of(const Zip& z, const std::string& path);
+// Restore: the version becomes the current file; the current one becomes a version.
+bool plan_restore(const Zip& z, const std::string& version, Edit& e);
+// Versions follow their file: a removed file / folder takes its versions with it, a renamed / moved one moves them
+// along (folder prefixes too). Renames from or to a version (restore) are left as they are. Call before rewrite().
+void carry_versions(const Zip& z, Edit& e);
+// Size + CRC-32 of a disk file (streamed); false when it cannot be read.
+bool file_crc(const std::string& disk, uint64_t& size, uint32_t& crc);
+
+// --- R25 pack the project folder ------------------------------------------------------------------------------
+// Everything in the folder of the .pcbp goes into the job archive except what must stay next to it:
+//   * machine programs, wherever their name (.h8h / .h7h / .h5h / .h4h, splits .h81.., .iss, splits .i01.., .e41..)
+//   * project sidecars by name: the M1 work order / traveller, the AOI picture, machine side files (.cpf .cmp .osl
+//     .mmd .err .tbl), which TrayTagPrinter and the machines read from the folder
+//   * the project file and its backups / autosaves, the archive and its .bak, Office lock files, Thumbs.db /
+//     desktop.ini, hidden folders, the "_packed" folder.
+// Files whose content the archive already has (same size + CRC anywhere in it) are listed as already archived.
+struct PackSkip { std::string disk, name, why; };
+struct PackPlan {
+    DropSheet sheet;                    // top-level files and folders to pack, with proposed categories
+    std::vector<PackSkip> stays;        // stays next to the archive
+    std::vector<PackSkip> already;      // the archive holds the same content
+    int files() const { return sheet.included_files(); }
+};
+PackPlan plan_pack(const std::string& dir, const std::vector<std::string>& projects, const std::string& archive_name, const Zip* z);
+constexpr const char* kPackedFolder = "_packed";
+// After the rewrite: every disk file the edit added is in `z` with its size and CRC. false + err names the first miss.
+bool verify_packed(const Zip& z, const Edit& e, std::string& err);
+// Move packed originals to dir/_packed/ keeping their folders below dir (never overwrites: "name (2)"); empty source
+// folders are removed. Returns the number moved; `failed` lists what could not be moved.
+int move_packed(const std::string& dir, const std::vector<std::string>& disk_paths, std::vector<std::string>& failed);
+
+// --- R25 hashes (DocumentRef::sha256) -----------------------------------------------------------------------------
+// SHA-256 of what an edit adds (disk files streamed), by archive name; put into the index after the rewrite.
+std::map<std::string, std::string> hash_added(const Edit& e);
+std::string entry_sha256(const Zip& z, const Item& it);   // "" when the entry cannot be read
+// Verify / complete the index: entries in `known` take that hash, others are hashed from the archive (all of them:
+// a full check). bad: entries that cannot be read or whose stored hash no longer matches. Returns hashes added.
+int fill_hashes(std::vector<DocumentRef>& idx, const Zip& z, const std::map<std::string, std::string>& known = {},
+                std::vector<std::string>* bad = nullptr);
 // Rows for dropped / picked disk paths (reads the first bytes of each file). target >= 0 preselects that category.
 DropSheet make_drop_sheet(const std::vector<std::string>& disk_paths, int target = -1);
 
@@ -156,7 +211,7 @@ std::string sanitize_file_name(const std::string& s);
 // Unique archive name for `name` under `folder` ("Drawing/x.pdf", "Drawing/x (2).pdf", ...).
 std::string unique_name(const Zip* z, const std::string& folder, const std::string& file_name, const std::set<std::string>& taken = {});
 
-// Index <-> archive: rebuild `idx` from the archive listing (files only), keeping tags / notes / category of
+// Index <-> archive: rebuild `idx` from the archive listing (files only, not the .versions/ copies), keeping tags / notes / category of
 // entries that survive; `renames` (old -> new, folder prefixes allowed) carries metadata across rename / move.
 // Category (stored as its label) = the top folder's category when it is a category folder (current or legacy),
 // else the stored one migrated to the R22 names ("Other" when unknown). R22 index migration: legacy category names

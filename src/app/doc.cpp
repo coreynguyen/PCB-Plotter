@@ -3,6 +3,7 @@
 // ============================================================================
 #include "doc.h"
 #include "../core/package_resolve.h"
+#include "../core/gerber_set.h"
 #include "core/package_edit.h"
 #include <algorithm>
 #include <cstdio>
@@ -20,46 +21,18 @@ std::wstring Doc::display_name() const {
 
 std::string Doc::resolve_format(size_t i, gerber::Format& fmt) const {
     const GerberLayerRef& l = prj.layers[i];
-    if (!l.format.empty()) {
-        char u[8] = {}, z = 'L';
-        int a = 2, b = 4;
-        if (std::sscanf(l.format.c_str(), "%7s %d.%d %c", u, &a, &b, &z) >= 3) {
-            fmt.inch = std::string(u) != "mm";
-            fmt.int_digits = a;
-            fmt.frac_digits = b;
-            fmt.lead_supp = z != 'T';
-            return fmt.describe();
-        }
-    }
+    if (gset::parse_format_string(l.format, fmt)) return fmt.describe();
     return {};
 }
 
 bool Doc::parse_layer(size_t i, std::string& err) {
     if (i >= prj.layers.size()) return false;
     if (glayers.size() < prj.layers.size()) glayers.resize(prj.layers.size());
-    GerberLayerRef& ref = prj.layers[i];
-    gerber::ParseOptions opt;
-    if (!ref.aperture_list.empty()) {
-        gerber::ListUnits u = ref.units_hint == "mil" ? gerber::ListUnits::Mil : ref.units_hint == "inch" ? gerber::ListUnits::Inch
-                            : ref.units_hint == "mm" ? gerber::ListUnits::MM : gerber::ListUnits::Auto;
-        opt.apertures = gerber::parse_aperture_list(ref.aperture_list, u).aps;
-    }
-    gerber::Format f;
-    if (!resolve_format(i, f).empty()) { opt.fmt = f; opt.force_format = true; }
-    else if (!gerber::looks_like_rs274x(ref.content) && !gerber::looks_like_excellon(ref.content)) {
-        auto cands = gerber::guess_format(ref.content, opt.apertures);
-        if (!cands.empty()) {
-            opt.fmt = cands.front().fmt;
-            opt.force_format = true;
-            ref.format = std::string(opt.fmt.inch ? "in " : "mm ") + std::to_string(opt.fmt.int_digits) + "." +
-                         std::to_string(opt.fmt.frac_digits) + (opt.fmt.lead_supp ? " L" : " T");
-        }
-    }
+    // LLM_API G1: same parse as the headless Gerber import (core/gerber_set)
     auto L = std::make_shared<gerber::Layer>();
-    if (!gerber::parse(ref.content, opt, *L, err)) { glayers[i] = L; return false; }
-    L->name = ref.name;
+    const bool ok = gset::parse_layer_ref(prj.layers[i], *L, err);
     glayers[i] = L;
-    return true;
+    return ok;
 }
 
 void Doc::parse_all_layers() {

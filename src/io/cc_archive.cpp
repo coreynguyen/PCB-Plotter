@@ -304,8 +304,8 @@ bool read_body(Reader& r, GrObject& o) {
             if (ok && o.type == GrType::Handles) ok = r.i32(o.handles_tail);
             break;
         case GrType::PolyArcLine: {
-            uint8_t c;
-            int32_t k;
+            uint8_t c = 0;
+            int32_t k = 0;
             ok = read_base(r, o) && r.u8(c) && r.i32(k);
             if (ok) {
                 o.closed = c;
@@ -343,7 +343,7 @@ bool read_body(Reader& r, GrObject& o) {
         }
         case GrType::BomCol: {
             std::string v;
-            int32_t a, b;
+            int32_t a = 0, b = 0;
             std::string field, title;
             GrLogFont f;
             ok = r.cstring(v) && r.i32(a) && r.cstring(field) && r.cstring(title) &&
@@ -356,7 +356,7 @@ bool read_body(Reader& r, GrObject& o) {
         case GrType::BomEntry: {
             std::string v;
             GrLogFont f;
-            int32_t a, b;
+            int32_t a = 0, b = 0;
             ok = r.cstring(v) && read_obarray(r, o) && read_logfont(r, v, f) && r.i32(a) && r.i32(b);
             if (ok) { o.ver = v; o.fonts = {f}; o.bom_ints = {a, b}; }
             break;

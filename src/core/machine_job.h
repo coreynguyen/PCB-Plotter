@@ -10,6 +10,7 @@
 // ============================================================================
 #include "geom.h"
 #include <map>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -63,6 +64,19 @@ struct JobPart {                // one row per distinct part number
     std::string centring;
     double mach_conf = 0;
     bool mach_assigned = false;
+    // H8H research data (io/juki_research): the component's full machine records as the HLC editor's Database ->
+    // Research would write them (block 4 component, 7 vision control, 18 vision data, 19 extra). Empty = not
+    // researched; the writer then uses its default record. A researched record is copied whole; the writer only
+    // puts the name, description, placement count and long name over it.
+    std::vector<uint8_t> h8h_b4, h8h_b7, h8h_b18, h8h_b19;
+    std::vector<uint8_t> h8h_bga;   // BGA ball pattern (block 16, 12830 B) for a custom-pattern BGA; shared by name
+    // element-group parts: element groups (block 20, 170 B), elements (21, 112 B), extended arrays (22, 3142 B),
+    // indices local to the part (the writer renumbers them)
+    std::vector<uint8_t> h8h_groups, h8h_elements, h8h_arrays;
+    // where the H8H machine data came from: "database" (the component DB), "library" (a package-library profile
+    // taught for the part), "rules" (built-in rules); h8h_note says which profile / what was assumed.
+    // h8h_name: the part's name in the component DB (its 20-character machine name), "" = none.
+    std::string h8h_source, h8h_note, h8h_name;
 };
 
 struct JobFiducial {

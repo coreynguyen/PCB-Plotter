@@ -8,6 +8,7 @@
 #include "io/juki_writer.h"
 
 #include <algorithm>
+#include <tuple>
 #include <cctype>
 #include <climits>
 #include <cmath>
@@ -93,6 +94,141 @@ std::string legacy_text(const std::string& s, int* changed) {
     }
     if (changed) *changed = ch;
     return o;
+}
+
+std::vector<MachineName> machine_names(const std::vector<std::string>& parts, const std::vector<std::string>& preferred) {
+    constexpr size_t kName = 20, kFull = 60;
+    auto up = [](std::string s) { for (auto& c : s) c = (char)std::toupper((unsigned char)c); return s; };
+    auto rtrim = [](std::string s) { while (!s.empty() && s.back() == ' ') s.pop_back(); return s; };
+    const size_t n = parts.size();
+    std::vector<MachineName> out(n);
+    std::vector<std::string> base(n);
+    for (size_t i = 0; i < n; ++i) {
+        base[i] = legacy_text(parts[i]);
+        if (base[i].empty()) base[i] = "PART";
+    }
+    // names that exist as they are: every part number of up to 20 characters, and the DB names of the others
+    std::set<std::string> reserved, taken;
+    std::map<std::string, int> prefix_users;   // first 20 characters of the long part numbers
+    for (size_t i = 0; i < n; ++i) {
+        if (base[i].size() <= kName) reserved.insert(up(base[i]));
+        else ++prefix_users[up(rtrim(base[i].substr(0, kName)))];
+        if (i < preferred.size() && !preferred[i].empty() && preferred[i].size() <= kName) reserved.insert(up(preferred[i]));
+    }
+    auto free_name = [&](const std::string& c, const std::string& own) {
+        const std::string u = up(c);
+        return !c.empty() && !taken.count(u) && (!reserved.count(u) || u == up(own));
+    };
+    auto numbered = [&](const std::string& b, const std::string& own) {
+        for (int k = 1; k < 100000; ++k) {
+            const std::string suf = "~" + std::to_string(k);
+            const std::string c = rtrim(b.substr(0, kName - suf.size())) + suf;
+            if (free_name(c, own)) return c;
+        }
+        return rtrim(b.substr(0, kName));
+    };
+    // part numbers of up to 20 characters first: they keep their name unless an earlier one has it already
+    for (size_t i = 0; i < n; ++i) {
+        if (base[i].size() > kName) continue;
+        std::string nm = base[i];
+        if (taken.count(up(nm))) { nm = numbered(base[i], std::string()); out[i].how = MachineName::Renamed; }
+        taken.insert(up(nm));
+        out[i].name = nm;
+    }
+    // longer part numbers: the DB name when free, else the first 20 characters when no other name has them
+    std::map<std::string, std::vector<size_t>> clash;   // first 20 -> the long part numbers that need more
+    for (size_t i = 0; i < n; ++i) {
+        if (base[i].size() <= kName) continue;
+        const std::string& b = base[i];
+        const std::string pref = i < preferred.size() ? preferred[i] : std::string();
+        const std::string head = rtrim(b.substr(0, kName));
+        if (!pref.empty() && pref.size() <= kName && free_name(pref, pref)) {
+            out[i].name = pref;
+            out[i].how = up(pref) == up(head) ? MachineName::Truncated : MachineName::Renamed;
+        } else if (prefix_users[up(head)] == 1 && free_name(head, std::string())) {
+            out[i].name = head;
+            out[i].how = MachineName::Truncated;
+        } else {
+            clash[up(head)].push_back(i);
+            continue;
+        }
+        taken.insert(up(out[i].name));
+    }
+    // clashes: as much of the beginning as fits, "~", and an end of the part number that differs between all of the
+    // clashing part numbers (whole tokens where it fits: "-TR" gives "TR"), at most 11 characters
+    constexpr size_t kTail = 11;
+    auto is_sep = [](char c) { return c == '-' || c == '_' || c == '/' || c == ' ' || c == '.' || c == ',' || c == '#'; };
+    for (auto& [head, g] : clash) {
+        std::vector<std::string> pick(g.size());
+        auto tail_of = [&](const std::string& b, size_t t) {
+            size_t from = b.size() - t;
+            for (size_t q = from; q-- > 0 && b.size() - q - 1 <= kTail && q >= kName - 1 - kTail;)
+                if (is_sep(b[q])) { from = q + 1; break; }
+            return b.substr(from);
+        };
+        auto try_all = [&](const std::vector<std::string>& tails) {
+            std::set<std::string> seen;
+            std::vector<std::string> c(g.size());
+            for (size_t k = 0; k < g.size(); ++k) {
+                const std::string& b = base[g[k]];
+                if (tails[k].empty() || tails[k].size() > kTail) return false;
+                c[k] = rtrim(b.substr(0, kName - 1 - tails[k].size())) + "~" + tails[k];
+                if (!seen.insert(up(c[k])).second || !free_name(c[k], std::string())) return false;
+            }
+            pick = c;
+            return true;
+        };
+        bool done = false;
+        for (size_t t = 1; !done && t <= kTail; ++t) {
+            std::vector<std::string> tails(g.size()), raw(g.size());
+            std::set<std::string> distinct;
+            bool ok = true;
+            for (size_t k = 0; k < g.size() && ok; ++k) {
+                const std::string& b = base[g[k]];
+                if (t >= b.size()) { ok = false; break; }
+                raw[k] = up(b.substr(b.size() - t));
+                ok = distinct.insert(raw[k]).second;
+                tails[k] = tail_of(b, t);
+            }
+            if (ok) done = try_all(tails);
+        }
+        if (!done) {
+            // the ends are the same: from where the part numbers start to differ
+            std::vector<std::string> tails(g.size());
+            for (size_t k = 0; k < g.size(); ++k) {
+                const std::string& b = base[g[k]];
+                size_t d = kName;
+                for (size_t o = 0; o < g.size(); ++o) {
+                    if (o == k) continue;
+                    const std::string& x = base[g[o]];
+                    size_t c = 0;
+                    while (c < b.size() && c < x.size() && std::toupper((unsigned char)b[c]) == std::toupper((unsigned char)x[c])) ++c;
+                    d = std::max(d, c);
+                }
+                tails[k] = d < b.size() ? b.substr(d, kTail) : std::string();
+            }
+            done = try_all(tails);
+        }
+        for (size_t k = 0; k < g.size(); ++k) {
+            const size_t i = g[k];
+            out[i].name = done ? pick[k] : numbered(base[i], std::string());
+            out[i].how = MachineName::Renamed;
+            taken.insert(up(out[i].name));
+        }
+    }
+    // the long-name field: the part number itself, made unique where text conversion made two the same
+    std::set<std::string> fulls;
+    for (size_t i = 0; i < n; ++i) {
+        std::string f = base[i].size() <= kName ? out[i].name : base[i];
+        for (int k = 1; fulls.count(up(f.substr(0, kFull))); ++k) {
+            const std::string suf = "~" + std::to_string(k);
+            f = base[i].substr(0, std::min(base[i].size(), kFull - suf.size())) + suf;
+            if (out[i].how == MachineName::Same) out[i].how = MachineName::Renamed;
+        }
+        fulls.insert(up(f.substr(0, kFull)));
+        out[i].full = f;
+    }
+    return out;
 }
 
 namespace {
@@ -579,8 +715,51 @@ MarkSelection select_marks(const MachineJob& job) {
     return R;
 }
 
+namespace {
+H8hResearchHook g_research_hook;
+H8hResearchHook& autopart_hook() { static H8hResearchHook h; return h; }   // set at static init (juki_autopart.cpp)
+}
+void set_h8h_research_hook(H8hResearchHook hook) { g_research_hook = std::move(hook); }
+void set_h8h_autopart(H8hResearchHook rules) { autopart_hook() = std::move(rules); }
+bool h8h_autopart_available() { return (bool)autopart_hook(); }
+bool h8h_research_available() { return (bool)g_research_hook; }
+
 bool write_hlc_variant(const MachineJob& job, HlcVariant v, std::vector<uint8_t>& out,
                        std::string& err, HlcWriteInfo* info) {
+    // H8H: fill each part's machine records the way the HLC editor's Database -> Research does, when the
+    // application provided the data (component DB + researched programs) and the job did not opt out
+    // Parts not in the DB get machine data from a package-library profile (the hook) or the built-in rules
+    // (juki_autopart), unless the job opts out (juki.autopart off).
+    if (v == HlcVariant::H8H && opt(job, "juki.research") != "off") {
+        bool any = false;
+        for (const JobPart& p : job.parts) if (!p.h8h_b4.empty()) { any = true; break; }
+        const bool rules = opt(job, "juki.autopart") != "off" && (bool)autopart_hook();
+        if (!any && (g_research_hook || rules)) {
+            MachineJob j2 = job;
+            int db = 0, lib = 0, gen = 0;
+            std::vector<std::pair<std::string, std::string>> made;
+            for (JobPart& p : j2.parts) {
+                if (g_research_hook && g_research_hook(p) && !p.h8h_b4.empty()) {
+                    if (p.h8h_source == "library") { ++lib; made.push_back({p.part, "library: " + p.h8h_note}); }
+                    else { p.h8h_source = "database"; ++db; }
+                    continue;
+                }
+                if (!rules || !autopart_hook()(p) || p.h8h_b4.empty()) continue;
+                p.h8h_source = "rules";
+                ++gen;
+                made.push_back({p.part, "rules: " + p.h8h_note});
+            }
+            j2.options["juki.research"] = "off";
+            const bool ok = write_hlc_variant(j2, v, out, err, info);
+            if (ok && info) {
+                info->comps_researched = db;
+                info->comps_from_library = lib;
+                info->comps_from_rules = gen;
+                info->generated = std::move(made);
+            }
+            return ok;
+        }
+    }
     out.clear();
     HlcWriteInfo local_info;
     HlcWriteInfo& WI = info ? *info : local_info;
@@ -676,34 +855,23 @@ bool write_hlc_variant(const MachineJob& job, HlcVariant v, std::vector<uint8_t>
         auto it = comp_idx.find(p->part);
         if (it != comp_idx.end()) ++comp_count[(size_t)it->second];
     }
-    // ---- ANSI part names + deterministic collision resolution (P0-03) -------
-    // Identity = the 20-char short field AND the full (long-name) field; two
-    // different part numbers must stay different in both after conversion.
-    std::vector<std::string> cname(M);      // full written name
+    // ---- part names (P0-03): 20-character name + long name, unique across the program ---------------------
+    std::vector<std::string> cname(M), cfull(M);   // written name field / long-name field
     {
-        std::set<std::string> used_short, used_full;
+        std::vector<std::string> parts(M), pref(M);
+        for (uint32_t i = 0; i < M; ++i) { parts[i] = comps[i]->part; pref[i] = comps[i]->h8h_name; }
+        const std::vector<MachineName> mn = machine_names(parts, pref);
         for (uint32_t i = 0; i < M; ++i) {
-            const std::string base = legacy_text(comps[i]->part);
-            std::string full = base;
-            for (int k = 1; used_full.count(full) || used_short.count(full.substr(0, 20)); ++k) {
-                const std::string suf = "~" + std::to_string(k);
-                // short field gets the suffix inside its 20 chars; a long name keeps its tail
-                const size_t cut = 20 - suf.size();
-                full = base.size() <= cut ? base + suf
-                     : base.size() <= 20 ? base.substr(0, cut) + suf
-                     : base.substr(0, cut) + suf + base.substr(cut);
-                if (k > 9999) { err = "cannot make part names unique: " + base; return false; }
-            }
-            used_full.insert(full); used_short.insert(full.substr(0, 20));
-            cname[i] = full;
-            if (full != comps[i]->part) {
-                int ch = 0; legacy_text(comps[i]->part, &ch);
-                if (full != base) WI.renamed.push_back({comps[i]->part, full});
-                else if (ch) ++WI.text_converted;
-            }
+            cname[i] = mn[i].name;
+            cfull[i] = mn[i].full;
+            int ch = 0;
+            legacy_text(comps[i]->part, &ch);
+            if (mn[i].how == MachineName::Renamed) WI.renamed.push_back({comps[i]->part, mn[i].name});
+            else if (mn[i].how == MachineName::Truncated) WI.truncated.push_back({comps[i]->part, mn[i].name});
+            else if (ch) ++WI.text_converted;
         }
         for (auto& r : WI.renamed)
-            WI.notes.push_back("part '" + r.first + "' written as '" + r.second + "' (name collision after ANSI conversion / 20-char limit)");
+            WI.notes.push_back("part '" + r.first + "' written as '" + r.second + "' (name clash after legacy-text conversion / the 20-character limit)");
     }
 
     // Imported verbatim geometry (juki.board_x0.., circuit_*, circuit_list) is valid only
@@ -778,6 +946,10 @@ bool write_hlc_variant(const MachineJob& job, HlcVariant v, std::vector<uint8_t>
     const uint32_t a_board = a_li + L.li_size;
     const uint32_t a_place = a_board + L.board_size;
     const uint32_t a_comp = a_place + L.place_size * N;
+    // researched component data (blocks 7 / 18 / 19 follow the component table, one record per component)
+    bool researched = false;
+    if (L.h8h && L.comp_tmpl == 9)
+        for (uint32_t i = 0; i < M; ++i) if (comps[i]->h8h_b4.size() == L.comp_size) researched = true;
     const uint32_t a_mark = a_comp + L.comp_size * M;
     // H8H: JUKI drops the mark element when there are no marks at all (§11).
     const bool has_marks = L.h8h ? (!global.empty() || sets > 0) : (L.wide || local_marks > 0);
@@ -790,11 +962,63 @@ bool write_hlc_variant(const MachineJob& job, HlcVariant v, std::vector<uint8_t>
     const uint32_t mark_bytes = !has_marks ? 0
                               : L.wide ? L.mark_elem * mark_elems
                                        : 1274 + 74 * local_marks;
-    const uint32_t a_b11 = a_mark + mark_bytes;                 // H8H only
+    const uint32_t a_b7 = a_mark + mark_bytes;                  // H8H researched only
+    const uint32_t b7_bytes = researched ? 1052u * M : 0;
+    const uint32_t a_b11 = a_b7 + b7_bytes;                     // H8H only
     const uint32_t a_name = L.h8h ? a_b11 + kH8hB11Size * kH8hRecs : a_mark + mark_bytes;
     const uint32_t a_b15 = a_name + L.name_size * N;            // H8H only
-    const uint32_t a_b17 = a_b15 + kH8hB15Pre;                  // block 16 empty at the same address
-    const uint32_t a_b26 = a_b17 + kH8hB17Pre;
+    // block 16: ball grids of custom-pattern BGAs, shared by pattern name (Research: library index at block 7 +135)
+    std::vector<const std::vector<uint8_t>*> bga_lib;
+    std::vector<int> bga_of(M, -2);   // -2: no grid, -1: library full
+    if (researched)
+        for (uint32_t i = 0; i < M; ++i) {
+            const JobPart& c = *comps[i];
+            if (c.h8h_bga.size() != 12830 || c.h8h_b7.size() != 1052 || c.h8h_b7[121] != 0xFF) continue;
+            if (c.h8h_b7[1] != 2 && c.h8h_b7[1] != 3 && c.h8h_b7[1] != 4) continue;
+            const char* nm = (const char*)c.h8h_bga.data() + 4;
+            int k = 0;
+            for (; k < (int)bga_lib.size(); ++k) {
+                const char* o = (const char*)bga_lib[(size_t)k]->data() + 4;
+                size_t q = 0;
+                while (q < 26 && nm[q] && std::tolower((unsigned char)nm[q]) == std::tolower((unsigned char)o[q])) ++q;
+                if (q == 26 || (!nm[q] && !o[q])) break;
+            }
+            if (k == (int)bga_lib.size()) {
+                if (bga_lib.size() >= 70) { bga_of[i] = -1; continue; }   // the line's library is full
+                bga_lib.push_back(&c.h8h_bga);
+            }
+            bga_of[i] = k;
+        }
+    const uint32_t a_b16 = a_b15 + kH8hB15Pre;
+    const uint32_t a_b17 = a_b16 + 12830u * (uint32_t)bga_lib.size();
+    const uint32_t a_b18 = a_b17 + kH8hB17Pre;                   // H8H researched only
+    const uint32_t a_b19 = a_b18 + (researched ? 5240u * M : 0);
+    // blocks 20 / 21 / 22: element groups, elements, extended arrays of element-group parts, renumbered program-wide
+    std::vector<uint8_t> el_groups, el_elems, el_arrays;
+    std::vector<std::vector<uint8_t>> el_b19(M);
+    if (researched)
+        for (uint32_t i = 0; i < M; ++i) {
+            const JobPart& c = *comps[i];
+            if (c.h8h_b19.size() != 36 || !c.h8h_b19[1]) continue;
+            std::vector<uint8_t> h = c.h8h_b19, g = c.h8h_groups, e = c.h8h_elements, a = c.h8h_arrays;
+            if (el_groups.size() / 170 + g.size() / 170 > 1024 || el_elems.size() / 112 + e.size() / 112 > 4096 ||
+                el_arrays.size() / 3142 + a.size() / 3142 > 256)
+            {   // the line's element lists are full: the part keeps no element data
+                el_b19[i].assign(36, 0);
+                el_b19[i][20] = el_b19[i][21] = el_b19[i][24] = el_b19[i][25] = 0xFF;
+                continue;
+            }
+            h8h_relocate_elements(h, g, e, a, (uint16_t)(el_groups.size() / 170), (uint16_t)(el_elems.size() / 112),
+                                  (uint16_t)(el_arrays.size() / 3142));
+            el_groups.insert(el_groups.end(), g.begin(), g.end());
+            el_elems.insert(el_elems.end(), e.begin(), e.end());
+            el_arrays.insert(el_arrays.end(), a.begin(), a.end());
+            el_b19[i] = std::move(h);
+        }
+    const uint32_t a_b20 = a_b19 + (researched ? 36u * M : 0);
+    const uint32_t a_b21 = a_b20 + (uint32_t)el_groups.size();
+    const uint32_t a_b22 = a_b21 + (uint32_t)el_elems.size();
+    const uint32_t a_b26 = a_b22 + (uint32_t)el_arrays.size();
     const uint32_t total = L.h8h ? a_b26 + kH8hB26Size * kH8hRecs : a_name + L.name_size * N;
 
     out.assign(total, 0);
@@ -817,9 +1041,17 @@ bool write_hlc_variant(const MachineJob& job, HlcVariant v, std::vector<uint8_t>
     if (L.h8h) {
         entry(6, a_mark, 0, L.mark_elem, mark_elems);   // listed even when empty
         for (const H8hEmpty& e : kH8hEmpty) entry(e.k, 0, 0, e.rs, e.cnt);
+        if (researched) {
+            entry(7, a_b7, 0, 1052, M);
+            entry(18, a_b18, 0, 5240, M);
+            entry(19, a_b19, 0, 36, M);
+            if (!el_groups.empty()) entry(20, a_b20, 0, 170, (uint32_t)(el_groups.size() / 170));
+            if (!el_elems.empty()) entry(21, a_b21, 0, 112, (uint32_t)(el_elems.size() / 112));
+            if (!el_arrays.empty()) entry(22, a_b22, 0, 3142, (uint32_t)(el_arrays.size() / 3142));
+        }
         entry(11, a_b11, 0, kH8hB11Size, kH8hRecs);
         entry(15, a_b15, kH8hB15Pre, 48, 0);
-        entry(16, a_b17, 0, 12830, 0);
+        entry(16, a_b16, 0, 12830, (uint32_t)bga_lib.size());
         entry(17, a_b17, kH8hB17Pre, 1024, 0);
         entry(26, a_b26, 0, kH8hB26Size, kH8hRecs);
         const int cfg = (int)CP.mode;
@@ -857,7 +1089,36 @@ bool write_hlc_variant(const MachineJob& job, HlcVariant v, std::vector<uint8_t>
         put_u32(out, b + 102, L.comp_size); put_u32(out, b + 106, L.comp_size);
         put_u32(out, b + 110, 700);
         put_u32(out, b + 114, M);
-        put_u32(out, b + 118, 0);
+        put_u32(out, b + 118, researched ? M : 0);
+        if (researched) {
+            // line-info rows of blocks 7 / 18 / 19: records in use (non-empty), as the editor counts them
+            auto used = [&](auto field, size_t size) {
+                uint32_t n = 0;
+                for (uint32_t i = 0; i < M; ++i) {
+                    const std::vector<uint8_t>& v = comps[i]->*field;
+                    if (v.size() == size && std::any_of(v.begin(), v.end(), [](uint8_t x) { return x != 0; })) ++n;
+                }
+                return n;
+            };
+            const uint32_t n7 = used(&JobPart::h8h_b7, 1052), n18 = used(&JobPart::h8h_b18, 5240);
+            uint32_t n19 = 0;   // block 19 counts the parts with element data
+            for (uint32_t i = 0; i < M; ++i) n19 += !el_b19[i].empty() && el_b19[i][1];
+            // element lists: in use / complete
+            auto el_row = [&](uint32_t row, const std::vector<uint8_t>& v, size_t rs) {
+                uint32_t n = 0, done = 0;
+                for (size_t o = 0; o + rs <= v.size(); o += rs) { ++n; done += v[o] == 2; }
+                put_u32(out, b + row + 12, n); put_u32(out, b + row + 16, done);
+            };
+            el_row(442, el_groups, 170);
+            el_row(462, el_elems, 112);
+            el_row(482, el_arrays, 3142);
+            const uint32_t n16 = (uint32_t)bga_lib.size();
+            put_u32(out, b + 362 + 12, n16); put_u32(out, b + 362 + 16, n16);
+            for (auto [row, rs, n] : {std::tuple<uint32_t, uint32_t, uint32_t>{162, 1052, n7}, {402, 5240, n18}, {422, 36, n19}}) {
+                put_u32(out, b + row, rs); put_u32(out, b + row + 4, rs); put_u32(out, b + row + 8, 700);
+                put_u32(out, b + row + 12, n); put_u32(out, b + row + 16, n);
+            }
+        }
         put_u32(out, b + 282, L.name_size); put_u32(out, b + 286, L.name_size);
         put_u32(out, b + 290, L.max_place);
         put_u32(out, b + 294, N); put_u32(out, b + 298, N);
@@ -1022,10 +1283,38 @@ bool write_hlc_variant(const MachineJob& job, HlcVariant v, std::vector<uint8_t>
         put_u16(out, s + 4, place_pair[i] >= 0 ? (uint16_t)(first_set + place_pair[i]) : 0);
     }
 
+    // ---- blocks 20 / 21 / 22: element lists ---------------------------------
+    if (!el_groups.empty()) std::memcpy(&out[a_b20], el_groups.data(), el_groups.size());
+    if (!el_elems.empty()) std::memcpy(&out[a_b21], el_elems.data(), el_elems.size());
+    if (!el_arrays.empty()) std::memcpy(&out[a_b22], el_arrays.data(), el_arrays.size());
+
+    // ---- block 16: BGA ball grids -------------------------------------------
+    for (size_t k = 0; k < bga_lib.size(); ++k) std::memcpy(&out[a_b16 + 12830 * k], bga_lib[k]->data(), 12830);
+
     // ---- block 4: components (§4.4) ----------------------------------------
     for (uint32_t i = 0; i < M; ++i) {
         const JobPart& c = *comps[i];
         const size_t r = a_comp + (size_t)L.comp_size * i;
+        const bool rs = researched && c.h8h_b4.size() == L.comp_size;
+        auto vis_of = [](const JobPart& p) {
+            return p.h8h_b7.size() == 1052 && std::any_of(p.h8h_b7.begin(), p.h8h_b7.end(), [](uint8_t b) { return b != 0; });
+        };
+        if (rs) {
+            auto put_rec = [&](const std::vector<uint8_t>& v, uint32_t base, uint32_t size) {
+                if (v.size() == size) std::memcpy(&out[base + (size_t)size * i], v.data(), size);
+            };
+            put_rec(c.h8h_b7, a_b7, 1052);
+            put_rec(c.h8h_b18, a_b18, 5240);
+            put_rec(el_b19[i].empty() ? c.h8h_b19 : el_b19[i], a_b19, 36);
+            // own index in the vision cross-references (only when the part has vision data)
+            if (vis_of(c))
+                for (size_t o : {291u, 391u, 491u, 591u}) put_u16(out, a_b7 + 1052 * (size_t)i + o, (uint16_t)i);
+            if (bga_of[i] != -2) {
+                const size_t r7 = a_b7 + 1052 * (size_t)i;
+                if (bga_of[i] >= 0) out[r7 + 135] = (uint8_t)bga_of[i];
+                else { std::memset(&out[r7 + 121], 0, 16); out[r7] = 1; }   // no room in the library: no grid
+            }
+        }
         switch (L.comp_tmpl) {
             case 9:
                 if (L.h8h) apply_defs(out, r, kDef8);
@@ -1038,7 +1327,7 @@ bool write_hlc_variant(const MachineJob& job, HlcVariant v, std::vector<uint8_t>
         put_str(out, r + 0, 21, cname[i]);
         put_str(out, r + 47, 31, c.description);
         { int ch = 0; legacy_text(c.description, &ch); if (ch) ++WI.text_converted; }
-        if (L.comp_tmpl == 9) {
+        if (L.comp_tmpl == 9 && !rs) {
             // Outline (ComponentsDataConvert): +81 width (X at 0 deg), +85 length (Y),
             // +89 height, 1e-4 mm; set flags at +113 bit1/bit2/bit3.
             uint16_t sf = 0;
@@ -1050,7 +1339,7 @@ bool write_hlc_variant(const MachineJob& job, HlcVariant v, std::vector<uint8_t>
             if (sf && c.size_src == "pads") ++WI.comps_size_from_pads;   // R24a: legs included (no body outline)
             if (!(c.height > 0)) ++WI.comps_without_height;             // R24a: never fabricated
         }
-        if (L.h8h) {
+        if (L.h8h && !rs) {
             // R18a (HLC_FORMAT.md §8.1): +80 u8 feeder kind (only when the part number has a packaging), supply
             // angle i16 in 1/80 deg at +180 for tape (+176/+178 = tape width / pitch codes), at +178 otherwise.
             if (c.feeder_kind > 0) put_u8(out, r + 80, (uint8_t)c.feeder_kind);
@@ -1062,13 +1351,19 @@ bool write_hlc_variant(const MachineJob& job, HlcVariant v, std::vector<uint8_t>
             if (c.feeder_kind == 1 && c.tape_code > 0) put_u16(out, r + 176, (uint16_t)c.tape_code);
             if (c.feeder_kind == 1 && c.pitch_code > 0) put_u16(out, r + 178, (uint16_t)c.pitch_code);
         }
-        put_u16(out, r + (L.comp_tmpl == 5 ? 110 : 118), (uint16_t)comp_count[i]);
         if (L.comp_tmpl == 9) {
             const size_t ln = L.h8h ? 1143 : 1115;   // H8H offset inferred (§5.2)
-            put_u8(out, r + ln, cname[i].size() <= 20 ? 0 : cname[i].size() <= 60 ? 1 : 2);
-            put_str(out, r + ln + 1, 61, cname[i]);
+            put_u8(out, r + ln, cfull[i].size() <= 20 ? 0 : cfull[i].size() <= 60 ? 1 : 2);
+            put_str(out, r + ln + 1, 61, cfull[i]);
             put_str(out, r + ln + 62, 128, c.description);
         }
+        // researched: the database part of the record over the program's own record (as the editor's Research)
+        if (rs) {
+            research_merge_b4(&out[r], c.h8h_b4.data());
+            if (vis_of(c)) put_u16(out, r + 338, (uint16_t)i);
+            else put_u16(out, r + 338, 0);
+        }
+        put_u16(out, r + (L.comp_tmpl == 5 ? 110 : 118), (uint16_t)comp_count[i]);
     }
 
     // ---- block 6: marks (§4.6) ---------------------------------------------
@@ -1558,7 +1853,34 @@ void check_job(const MachineJob& job, std::vector<ExportIssue>& out) {
         out.push_back({c.error ? ExportIssue::Error : ExportIssue::Warning, "", "Machine program check: " + c.msg});
     for (const auto& r : wi.renamed)
         out.push_back({ExportIssue::Warning, "", "Part '" + r.first + "' is written as '" + r.second +
-                       "' (two part numbers are identical after legacy-text conversion / 20 characters)."});
+                       "': its first 20 characters clash with another part name (full part number kept in the long name)."});
+    if (!wi.truncated.empty()) {
+        std::string ex;
+        for (size_t k = 0; k < wi.truncated.size() && k < 4; ++k) ex += (k ? ", " : "") + wi.truncated[k].first + " -> " + wi.truncated[k].second;
+        out.push_back({ExportIssue::Warning, "", std::to_string(wi.truncated.size()) +
+                       " part number(s) are longer than 20 characters and are named by their first 20 (" + ex +
+                       (wi.truncated.size() > 4 ? ", ..." : "") + "); the full part number is in the long name."});
+    }
+    if (v == HlcVariant::H8H && opt(job, "juki.research") != "off") {
+        const int all = (int)job.parts.size();
+        const int made = wi.comps_from_library + wi.comps_from_rules, none = all - wi.comps_researched - made;
+        if (wi.comps_researched)
+            out.push_back({ExportIssue::Info, "", std::to_string(wi.comps_researched) + " of " + std::to_string(all) +
+                           " component(s) carry full machine data from the component database (as Database -> Research writes it)."});
+        if (made) {
+            std::string ex;
+            for (size_t k = 0; k < wi.generated.size() && k < 4; ++k) ex += (k ? "; " : "") + wi.generated[k].first + " (" + wi.generated[k].second + ")";
+            out.push_back({ExportIssue::Warning, "", std::to_string(made) + " component(s) are not in the component database; machine data created from " +
+                           (wi.comps_from_library ? std::to_string(wi.comps_from_library) + " package-library profile(s)" : std::string()) +
+                           (wi.comps_from_library && wi.comps_from_rules ? " and " : "") +
+                           (wi.comps_from_rules ? std::string("the built-in rules (") + std::to_string(wi.comps_from_rules) + ")" : std::string()) +
+                           ": " + ex + (wi.generated.size() > 4 ? " and " + std::to_string(wi.generated.size() - 4) + " more" : "") +
+                           ". Check them in the editor before running."});
+        }
+        if (none > 0)
+            out.push_back({ExportIssue::Warning, "", std::to_string(none) +
+                           " component(s) have no machine data (not in the component database, no body size): teach them in the editor."});
+    }
     if (wi.comps_without_size)
         out.push_back({ExportIssue::Warning, "", std::to_string(wi.comps_without_size) +
                        " component(s) have no package outline: the machine vision data must be set in the JUKI editor."});
@@ -1600,4 +1922,94 @@ void check_job(const MachineJob& job, std::vector<ExportIssue>& out) {
 }
 
 namespace { struct RegisterJukiCheck { RegisterJukiCheck() { register_job_checker("juki.", &check_job); } } g_register_juki_check; }
+// ---- research merge (Database -> Research semantics) ----------------------------------------------------------
+namespace {
+int32_t rm_rd32(const uint8_t* p) { int32_t x; std::memcpy(&x, p, 4); return x; }
+uint16_t rm_rd16(const uint8_t* p) { return (uint16_t)(p[0] | p[1] << 8); }
+void rm_wr16(uint8_t* p, uint16_t x) { p[0] = (uint8_t)x; p[1] = (uint8_t)(x >> 8); }
+void rm_wr32(uint8_t* p, int32_t x) { std::memcpy(p, &x, 4); }
+// byte ranges [from, to) of the component record that research takes from the database read
+constexpr int kMergeRanges[][2] = {
+    {21, 45}, {78, 105}, {115, 118}, {168, 176}, {176, 226}, {226, 704}, {704, 944}, {944, 1139}, {1139, 1143}, {1340, 1342},
+};
+int max_dim(const uint8_t* r) { return std::max(rm_rd32(r + 81), rm_rd32(r + 85)); }
+// small-chip classes whose auxiliary chip data (+978, 20 B) is kept
+bool keeps_chip_aux(const uint8_t* db) {
+    if (max_dim(db) > 100000) return false;
+    const uint16_t c = rm_rd16(db + 78);
+    if (c != 1 && c != 3 && c != 6 && c != 14) return false;
+    return (rm_rd16(db + 113) & 1) && (db[80] == 1 || db[80] == 4);
+}
+// vision lead classes whose lead data (+964, 14 B) is kept
+bool keeps_lead_aux(const uint8_t* db) {
+    if (db[246] != 1) return false;
+    switch (rm_rd16(db + 78)) {
+        case 101: case 102: case 104: case 105: case 106: case 203: case 302: return true;
+        default: return false;
+    }
+}
+}  // namespace
+
+void research_merge_b4(uint8_t* a, const uint8_t* b) {
+    // comment: up to the first NUL of the database text, line breaks end it, leading breaks are skipped
+    std::memset(a + 47, 0, 31);
+    std::memset(a + 1205, 0, 128);
+    for (int i = 0; i < 31 && b[47 + i]; ++i) a[47 + i] = b[47 + i];
+    for (int i = 0; i < 31; ++i) if (a[47 + i] == 13 || a[47 + i] == 10) a[47 + i] = 0;
+    if (!a[47]) {
+        int skip = 0;
+        bool found = false;
+        for (int j = 0; j < 30; ++j) { ++skip; if (!a[47 + j] && a[48 + j]) { found = true; break; } }
+        if (found) for (int k = 0; k < 30 - skip; ++k) a[47 + k] = a[47 + k + skip];
+    }
+    for (int m = 0; m < 30; ++m) if (!a[47 + m]) a[48 + m] = 0;
+    a[77] = 0;
+    std::memcpy(a + 1205, a + 47, std::strlen((const char*)a + 47));
+    const uint8_t keep716 = a[716];
+    for (auto& r : kMergeRanges) std::memcpy(a + r[0], b + r[0], (size_t)(r[1] - r[0]));
+    // outline-flag word: bits 0-3 and 5 from the database, the rest stays
+    const uint16_t m = 0x2F;
+    rm_wr16(a + 113, (uint16_t)((rm_rd16(b + 113) & m) | (rm_rd16(a + 113) & ~m)));
+    // laser recognition offsets: force the "set" bits and keep the X/Y pair consistent
+    if (a[392] == 1) {
+        uint16_t f603 = rm_rd16(a + 603), f605 = rm_rd16(a + 605);
+        if (!(f603 & 0x200)) { f603 |= 0x200; rm_wr32(a + 410, 0); }
+        if (!(f603 & 0x400)) { f603 |= 0x400; rm_wr32(a + 410, 0); }
+        if (!(f605 & 0x08)) { f605 |= 0x08; rm_wr32(a + 432, 0); }
+        if (!(f605 & 0x10)) { f605 |= 0x10; rm_wr32(a + 432, 0); }
+        rm_wr16(a + 603, f603); rm_wr16(a + 605, f605);
+        for (int o : {410, 414, 432, 436}) if (rm_rd32(a + o) < -990000 || rm_rd32(a + o) > 990000) rm_wr32(a + o, 0);
+        rm_wr32(a + 432, rm_rd32(a + 410));
+        rm_wr32(a + 436, rm_rd32(a + 414));
+    }
+    a[716] = keep716;
+    if (!a[715] || a[715] > 7) a[715] = 4;
+    if (!keeps_chip_aux(b)) std::memset(a + 978, 0, 20);
+    if (!keeps_lead_aux(b)) std::memset(a + 964, 0, 14);
+    rm_wr16(a + 118, 1);
+    // researched mark: at least the number of assigned feeders, 1 for a complete record
+    int used = 0;
+    for (int i = 0; i < 7; ++i) used += rm_rd16(a + 134 + 2 * i) + rm_rd16(a + 150 + 2 * i);
+    if ((int)(int16_t)rm_rd16(a + 148) < used) rm_wr16(a + 148, (uint16_t)used);
+    if (!rm_rd16(a + 148)) rm_wr16(a + 148, 1);   // researched (also when the record is incomplete)
+    // a complete record gets at least one pick position (+1116) and its copy (+1118)
+    if (a[117] == 2 && !rm_rd16(a + 1116)) rm_wr16(a + 1116, 1);
+    if (a[117] == 2 && !rm_rd16(a + 1118)) rm_wr16(a + 1118, rm_rd16(a + 1116));
+}
+
+
+void h8h_relocate_elements(std::vector<uint8_t>& b19, std::vector<uint8_t>& groups, std::vector<uint8_t>& elements,
+                           std::vector<uint8_t>& arrays, uint16_t g0, uint16_t e0, uint16_t a0) {
+    auto add = [](uint8_t* p, uint16_t base) {
+        const uint16_t v = (uint16_t)(p[0] | p[1] << 8);
+        if (v == 0xFFFF) return;
+        const uint16_t n = (uint16_t)(v + base);
+        p[0] = (uint8_t)n; p[1] = (uint8_t)(n >> 8);
+    };
+    if (b19.size() == 36) { add(&b19[20], g0); add(&b19[24], a0); }
+    for (size_t o = 0; o + 170 <= groups.size(); o += 170) { add(&groups[o + 8], g0); add(&groups[o + 10], g0); add(&groups[o + 12], e0); }
+    for (size_t o = 0; o + 3142 <= arrays.size(); o += 3142) { add(&arrays[o + 8], a0); add(&arrays[o + 10], a0); add(&arrays[o + 12], e0); }
+    for (size_t o = 0; o + 112 <= elements.size(); o += 112) { add(&elements[o + 12], e0); add(&elements[o + 14], e0); }
+}
+
 } // namespace pcbp::juki

@@ -8,6 +8,7 @@
 #include "../io/inflate.h"
 #include "content_detect.h"
 #include "../io/gerber.h"
+#include "sha256.h"
 
 #include <algorithm>
 #include <cctype>
@@ -24,7 +25,7 @@ namespace fs = std::filesystem;
 
 const LegacyFolder kLegacyFolders[8] = {
     {"Single Circuit", Category::Original, nullptr},   {"Panelized Circuit", Category::Panel, nullptr},
-    {"Bill of Materials", Category::Other, "BOM"},     {"Datasheets", Category::Other, "Datasheet"},
+    {"Bill of Materials", Category::Bom, nullptr},     {"Datasheets", Category::Other, "Datasheet"},
     {"Images", Category::Image, nullptr},              {"Emails", Category::Email, nullptr},
     {"Drawings", Category::Drawing, nullptr},          {"Other", Category::Other, nullptr}};
 
@@ -43,6 +44,8 @@ std::string ext_of(const std::string& n) {
     return lower(n.substr(d + 1));
 }
 std::string base_of(const std::string& n) { size_t s = n.find_last_of("/\\"); return s == std::string::npos ? n : n.substr(s + 1); }
+std::string parent_of(const std::string& n) { size_t s = n.find_last_of('/'); return s == std::string::npos ? std::string() : n.substr(0, s + 1); }
+std::string u8(const fs::path& p) { auto s = p.u8string(); return std::string(s.begin(), s.end()); }
 bool any_of_ext(const std::string& e, std::initializer_list<const char*> l) { for (auto* x : l) if (e == x) return true; return false; }
 bool has_word(const std::string& ln, std::initializer_list<const char*> l) { for (auto* x : l) if (ln.find(x) != std::string::npos) return true; return false; }
 constexpr uint32_t k32 = 0xFFFFFFFFu;
@@ -389,10 +392,10 @@ bool looks_image(const std::vector<uint8_t>& b) {
 // R22 categories
 // ---------------------------------------------------------------------------
 namespace {
-const char* const kCatLabel[kCategoryCount] = {"Original Circuit", "Panel Gerbers", "Stencil", "Schematic", "Drawing",
-                                               "Image", "Email / Correspondence", "Notes", "Other"};
-const char* const kCatFolder[kCategoryCount] = {"Original Circuit", "Panel Gerbers", "Stencil", "Schematic", "Drawing",
-                                                "Image", "Email", "Notes", "Other"};
+const char* const kCatLabel[kCategoryCount] = {"Original Circuit", "Panel Gerbers", "Stencil", "CAD", "BOM", "Machine Programs",
+                                               "Schematic", "Drawing", "Image", "Email / Correspondence", "Notes", "Other"};
+const char* const kCatFolder[kCategoryCount] = {"Original Circuit", "Panel Gerbers", "Stencil", "CAD", "BOM", "Machine Programs",
+                                                "Schematic", "Drawing", "Image", "Email", "Notes", "Other"};
 int ci(Category c) { const int i = (int)c; return i >= 0 && i < kCategoryCount ? i : kCategoryCount - 1; }
 } // namespace
 
@@ -406,6 +409,8 @@ Category category_from_name(const std::string& s0, bool* known) {
         if (s == lower(kCatLabel[i]) || s == lower(kCatFolder[i])) return (Category)i;
     for (auto& l : kLegacyFolders) if (s == lower(l.name)) return l.to;
     if (s == "email" || s == "correspondence" || s == "emails") return Category::Email;
+    if (s == "bill of materials" || s == "boms") return Category::Bom;
+    if (s == "programs" || s == "machine program" || s == "machine") return Category::Programs;
     if (known) *known = false;
     return Category::Other;
 }
@@ -536,6 +541,13 @@ bool name_stencil(const std::string& ln) { return has_word(ln, {"stencil", "sten
 bool name_schematic(const std::string& ln) { return has_word(ln, {"schematic", "schem", "sch_", "_sch", "-sch", " sch", "sch.", "circuit diagram", "wiring"}) || ln.rfind("sch", 0) == 0; }
 bool name_drawing(const std::string& ln) { return has_word(ln, {"drawing", "dwg", "assy", "assembly", "fab", "print", "mech", "outline", "panel", "paste", "drill", "layout"}); }
 bool name_datasheet(const std::string& ln) { return has_word(ln, {"datasheet", "data sheet", "_ds", "-ds", " ds."}); }
+// JUKI programs: HLC master .h8h / .h7h / .h5h / .h4h and machine splits .h81..; ISS .iss and splits .i01..; per-machine .e41..
+bool machine_program_name(const std::string& name) {
+    const std::string e = ext_of(name);
+    if (e == "iss" || e == "h8h" || e == "h7h" || e == "h5h" || e == "h4h") return true;
+    auto digits = [&](size_t from) { for (size_t i = from; i < e.size(); ++i) if (!std::isdigit((unsigned char)e[i])) return false; return e.size() > from; };
+    return e.size() == 3 && ((e[0] == 'h' && digits(1)) || (e[0] == 'i' && digits(1)) || (e[0] == 'e' && digits(1)));
+}
 bool name_notes(const std::string& ln) { return has_word(ln, {"note", "readme", "instruction", "procedure", "todo", "changelog"}); }
 
 // one Gerber-set member: layer roles + outline contours
@@ -620,10 +632,11 @@ Proposal propose_category(const std::string& name, const std::vector<uint8_t>& b
     if (any_of_ext(e, {"dxf", "dwg", "step", "stp", "igs", "iges"})) { p.cat = Category::Drawing; p.why = "mechanical drawing / model"; return p; }
     if (any_of_ext(e, {"docx", "doc", "rtf", "odt"})) {
         if (name_schematic(ln)) { p.cat = Category::Schematic; p.why = "document, name says schematic"; return p; }
-        if (has_word(ln, {"bom", "bill of mat"})) { p.cat = Category::Other; p.tags = {"BOM"}; p.why = "bill of materials"; return p; }
+        if (has_word(ln, {"bom", "bill of mat"})) { p.cat = Category::Bom; p.why = "bill of materials"; return p; }
         if (name_drawing(ln) && !name_notes(ln)) { p.cat = Category::Drawing; p.why = "document, name says drawing"; return p; }
         p.cat = Category::Notes; p.why = "document"; return p;
     }
+    if (machine_program_name(name)) { p.cat = Category::Programs; p.why = "machine program"; return p; }
     Census c;
     census_one(name, bytes, c, 0);
     if (c.gerber + c.drill >= 1) {
@@ -632,12 +645,13 @@ Proposal propose_category(const std::string& name, const std::vector<uint8_t>& b
         if (is_zip_name(name)) p.why = "zip: " + p.why;
         return p;
     }
-    if (c.cad || c.centroid) {
-        p.cat = name_panel(ln) ? Category::Panel : Category::Original;
-        p.why = c.cad ? "CAD data" : "placement (centroid) data";
+    if (c.cad || c.centroid || any_of_ext(e, {"tgz", "cpf", "cpj", "brd", "pcbdoc", "kicad_pcb"})) {
+        p.cat = Category::Cad;
+        p.why = c.cad ? "CAD data" : c.centroid ? "placement (centroid) data" : "CAD file (." + e + ")";
+        if (e == "tgz" && !c.cad) p.why = "ODB++ / CAD archive (.tgz)";
         return p;
     }
-    if (c.bom || has_word(ln, {"bom", "bill of mat"})) { p.cat = Category::Other; p.tags = {"BOM"}; p.why = "bill of materials"; return p; }
+    if (c.bom || has_word(ln, {"bom", "bill of mat"})) { p.cat = Category::Bom; p.why = "bill of materials"; return p; }
     if (any_of_ext(e, {"txt", "text", "log"}) || (e.empty() && !head.empty() && head.find('\0') == std::string::npos && name_notes(ln))) {
         p.cat = Category::Notes; p.why = "text note"; return p;
     }
@@ -698,33 +712,271 @@ std::vector<uint8_t> sniff_head(const std::string& path) {
 int DropSheet::included_files() const { int n = 0; for (auto& r : rows) if (r.include) n += r.files(); return n; }
 void DropSheet::set_all(Category c) { for (auto& r : rows) r.cat = c; }
 
-bool DropSheet::build(const Zip* z, Edit& e, std::map<std::string, std::vector<std::string>>* tags, std::map<int, int>* per_cat) const {
+bool DropSheet::build(const Zip* z, Edit& e, std::map<std::string, std::vector<std::string>>* tags, std::map<int, int>* per_cat,
+                      std::vector<std::string>* skipped) const {
     std::set<std::string> taken;
+    // one file at its archive name: a new name; an existing one with other content -> versioned; same content -> skipped
+    auto place = [&](const std::string& want, const std::string& folder, const std::string& disk, const DropRow& r) {
+        int k = -1;
+        if (keep_versions && z && !taken.count(lower(want))) k = z->find(want);
+        std::string n;
+        if (k >= 0) {
+            const Item& it = z->items()[(size_t)k];
+            uint64_t sz = 0;
+            uint32_t c = 0;
+            if (!it.dir() && file_crc(disk, sz, c) && sz == it.usize && c == it.crc) {
+                if (skipped) skipped->push_back(it.name);
+                return false;
+            }
+            const std::string vp = version_path(it, z, taken);
+            e.rename[it.name] = vp;
+            taken.insert(lower(vp));
+            n = it.name;
+        } else if (keep_versions && (!z || z->find(want) < 0) && !taken.count(lower(want))) {
+            n = want;
+        } else {
+            n = unique_name(z, folder, base_of(want), taken);
+        }
+        taken.insert(lower(n));
+        e.add.push_back({n, {}, disk});
+        if (tags && !r.p.tags.empty()) (*tags)[n] = r.p.tags;
+        return true;
+    };
     for (auto& r : rows) {
         if (!r.include) continue;
         const std::string top = category_folder(r.cat);
+        int put = 0;
         if (r.folder) {
-            const std::string pre = unique_name(z, top, sanitize_file_name(r.name), taken);
-            bool any = false;
+            // versions: the folder merges into an existing one of the same name; else a new unique folder
+            const std::string pre = keep_versions ? top + "/" + sanitize_file_name(r.name) : unique_name(z, top, sanitize_file_name(r.name), taken);
             for (auto& [disk, rel] : r.members) {
                 std::string rr = rel; for (auto& ch : rr) if (ch == '\\') ch = '/';
                 const std::string n = pre + "/" + rr;
-                e.add.push_back({n, {}, disk});
-                taken.insert(lower(n));
-                if (tags && !r.p.tags.empty()) (*tags)[n] = r.p.tags;
-                any = true;
+                const size_t sl = n.find_last_of('/');
+                if (keep_versions) put += place(n, n.substr(0, sl), disk, r);
+                else { taken.insert(lower(n)); e.add.push_back({n, {}, disk}); if (tags && !r.p.tags.empty()) (*tags)[n] = r.p.tags; ++put; }
             }
             taken.insert(lower(pre + "/"));
-            if (!any) e.add_dirs.push_back(pre + "/");
+            if (r.members.empty() && (!z || z->find(pre + "/") < 0)) e.add_dirs.push_back(pre + "/");
         } else {
-            const std::string n = unique_name(z, top, r.name, taken);
-            taken.insert(lower(n));
-            e.add.push_back({n, {}, r.disk});
-            if (tags && !r.p.tags.empty()) (*tags)[n] = r.p.tags;
+            put += place(top + "/" + sanitize_file_name(r.name), top, r.disk, r);
         }
-        if (per_cat) (*per_cat)[(int)r.cat] += r.files();
+        if (per_cat && put) (*per_cat)[(int)r.cat] += put;
     }
     return !e.add.empty() || !e.add_dirs.empty();
+}
+
+// --- R25 versions ---------------------------------------------------------------------------------------------
+bool is_version_path(const std::string& path) { return path.rfind(kVersionsFolder, 0) == 0; }
+
+std::string version_path(const Item& old, const Zip* z, const std::set<std::string>& taken) {
+    const std::string dir = parent_of(old.name), fn = base_of(old.name);
+    const size_t d = fn.find_last_of('.');
+    const std::string stem = d == std::string::npos || d == 0 ? fn : fn.substr(0, d), ext = d == std::string::npos || d == 0 ? "" : fn.substr(d);
+    char st[32] = "undated";
+    if (old.mdate)
+        std::snprintf(st, sizeof st, "%04d-%02d-%02d %02d%02d", 1980 + (old.mdate >> 9), (old.mdate >> 5) & 15, old.mdate & 31, old.mtime >> 11,
+                      (old.mtime >> 5) & 63);
+    const std::string base = std::string(kVersionsFolder) + dir + stem + " @" + st;
+    for (int i = 1; i < 10000; ++i) {
+        const std::string n = base + (i == 1 ? std::string() : " (" + std::to_string(i) + ")") + ext;
+        if ((!z || z->find(n) < 0) && !taken.count(lower(n))) return n;
+    }
+    return base + ext;
+}
+
+std::string version_of(const std::string& path) {
+    if (!is_version_path(path)) return std::string();
+    const std::string rest = path.substr(std::strlen(kVersionsFolder));
+    const std::string dir = parent_of(rest), fn = base_of(rest);
+    const size_t at = fn.rfind(" @");
+    if (at == std::string::npos) return std::string();
+    const size_t d = fn.find_last_of('.');
+    const std::string ext = d == std::string::npos || d < at ? "" : fn.substr(d);
+    return dir + fn.substr(0, at) + ext;
+}
+
+std::vector<const Item*> versions_of(const Zip& z, const std::string& path) {
+    std::vector<const Item*> v;
+    for (auto& it : z.items()) if (!it.dir() && version_of(it.name) == path) v.push_back(&it);
+    std::sort(v.begin(), v.end(), [](const Item* a, const Item* b) {
+        if (a->mdate != b->mdate) return a->mdate > b->mdate;
+        if (a->mtime != b->mtime) return a->mtime > b->mtime;
+        return a->name > b->name;
+    });
+    return v;
+}
+
+bool plan_restore(const Zip& z, const std::string& version, Edit& e) {
+    const std::string cur = version_of(version);
+    if (cur.empty() || z.find(version) < 0) return false;
+    const int k = z.find(cur);
+    std::set<std::string> taken = {lower(version)};
+    if (k >= 0) e.rename[z.items()[(size_t)k].name] = version_path(z.items()[(size_t)k], &z, taken);
+    e.rename[version] = cur;
+    return true;
+}
+
+void carry_versions(const Zip& z, Edit& e) {
+    const std::string V = kVersionsFolder;
+    std::set<std::string> rm;
+    for (auto& r : e.remove) {
+        if (is_version_path(r)) continue;
+        const bool folder = !r.empty() && r.back() == '/';
+        for (auto& it : z.items()) {
+            if (!is_version_path(it.name)) continue;
+            const std::string cur = version_of(it.name);
+            if (folder ? (it.name.rfind(V + r, 0) == 0) : cur == r) rm.insert(it.name);
+        }
+    }
+    std::map<std::string, std::string> mv;
+    for (auto& [from, to] : e.rename) {
+        if (is_version_path(from) || is_version_path(to)) continue;
+        const bool folder = !from.empty() && from.back() == '/';
+        for (auto& it : z.items()) {
+            if (!is_version_path(it.name) || e.rename.count(it.name) || rm.count(it.name)) continue;
+            if (folder) {
+                if (it.name.rfind(V + from, 0) == 0) mv[it.name] = V + to + it.name.substr(V.size() + from.size());
+            } else if (version_of(it.name) == from) {
+                // keep the version's own stamp: ".versions/<new dir><new stem> @<stamp><ext>"
+                const std::string fn = base_of(it.name);
+                const size_t at = fn.rfind(" @");
+                const std::string tfn = base_of(to);
+                const size_t d = tfn.find_last_of('.');
+                const std::string stem = d == std::string::npos || d == 0 ? tfn : tfn.substr(0, d), ext = d == std::string::npos || d == 0 ? "" : tfn.substr(d);
+                const size_t fd = fn.find_last_of('.');
+                const std::string stamp = fn.substr(at, (fd == std::string::npos || fd < at ? fn.size() : fd) - at);
+                mv[it.name] = V + parent_of(to) + stem + stamp + ext;
+            }
+        }
+    }
+    for (auto& x : rm) e.remove.insert(x);
+    for (auto& [a, b] : mv) e.rename[a] = b;
+}
+
+bool file_crc(const std::string& disk, uint64_t& size, uint32_t& crc) {
+    std::ifstream f(upath(disk), std::ios::binary);
+    if (!f) return false;
+    std::vector<char> b(1 << 16);
+    size = 0;
+    crc = 0;
+    while (f) {
+        f.read(b.data(), (std::streamsize)b.size());
+        const std::streamsize n = f.gcount();
+        if (n > 0) { crc = crc32_ieee((const uint8_t*)b.data(), (size_t)n, crc); size += (uint64_t)n; }
+    }
+    return !f.bad();
+}
+
+// --- R25 pack the project folder -----------------------------------------------------------------------------
+namespace {
+bool junk_name(const std::string& fn) {
+    const std::string l = lower(fn);
+    return l == "thumbs.db" || l == "desktop.ini" || l == ".ds_store" || l.rfind("~$", 0) == 0 || l.rfind(".~lock.", 0) == 0;
+}
+bool project_own(const std::string& fn, const std::string& archive_name) {
+    const std::string l = lower(fn), e = ext_of(fn);
+    if (e == "pcbp" || l.find(".pcbp.") != std::string::npos) return true;          // project, autosave, backup
+    if (!archive_name.empty() && (l == lower(archive_name) || l == lower(archive_name) + ".bak" || l.rfind(lower(archive_name) + ".tmp", 0) == 0)) return true;
+    return e == "tmp";
+}
+}  // namespace
+
+PackPlan plan_pack(const std::string& dir, const std::vector<std::string>& projects, const std::string& archive_name, const Zip* z) {
+    PackPlan plan;
+    std::error_code ec;
+    std::set<std::pair<uint64_t, uint32_t>> have;   // content the archive holds
+    if (z) for (auto& it : z->items()) if (!it.dir()) have.insert({it.usize, it.crc});
+    auto in_archive = [&](const std::string& disk) {
+        uint64_t sz = 0;
+        uint32_t c = 0;
+        return !have.empty() && file_crc(disk, sz, c) && have.count({sz, c});
+    };
+    std::vector<std::pair<std::string, std::string>> top;   // (name, disk), sorted
+    for (auto it = fs::directory_iterator(upath(dir), ec); !ec && it != fs::directory_iterator(); it.increment(ec)) {
+        auto fn = it->path().filename().u8string(), d = it->path().u8string();
+        top.push_back({std::string(fn.begin(), fn.end()), std::string(d.begin(), d.end())});
+    }
+    std::sort(top.begin(), top.end(), [](auto& a, auto& b) { return lower(a.first) < lower(b.first); });
+    std::vector<std::string> paths;
+    for (auto& [fn, disk] : top) {
+        if (fs::is_directory(upath(disk), ec)) {
+            if (fn.empty() || fn[0] == '.' || lower(fn) == lower(kPackedFolder)) continue;
+            paths.push_back(disk);
+            continue;
+        }
+        if (!fs::is_regular_file(upath(disk), ec) || junk_name(fn) || project_own(fn, archive_name)) continue;
+        if (machine_program_name(fn)) { plan.stays.push_back({disk, fn, "machine program: the machines read it from the folder"}); continue; }
+        SideFile sf;
+        if (classify_side(fn, projects, archive_name, sf)) {
+            static const std::set<std::string> side_ext = {"cpf", "cmp", "osl", "mmd", "err", "tbl"};
+            const char* why = sf.kind == SideKind::WorkOrder ? "M1 work order / traveller (TrayTagPrinter reads it)"
+                            : sf.kind == SideKind::AoiImage ? "AOI board picture (TrayTagPrinter's board viewer)"
+                            : side_ext.count(ext_of(fn)) ? "machine side file of the project" : nullptr;
+            if (why) { plan.stays.push_back({disk, fn, why}); continue; }
+        }
+        if (in_archive(disk)) { plan.already.push_back({disk, fn, "the archive has the same file"}); continue; }
+        paths.push_back(disk);
+    }
+    plan.sheet = make_drop_sheet(paths, -1);
+    // folders: leave out temp / lock files and members the archive already has
+    std::vector<DropRow> rows;
+    for (auto& r : plan.sheet.rows) {
+        if (r.folder) {
+            std::vector<std::pair<std::string, std::string>> keep;
+            for (auto& m : r.members) {
+                if (junk_name(base_of(m.second))) continue;
+                if (in_archive(m.first)) { plan.already.push_back({m.first, r.name + "/" + m.second, "the archive has the same file"}); continue; }
+                keep.push_back(m);
+            }
+            if (keep.empty()) continue;
+            r.members = std::move(keep);
+        }
+        rows.push_back(std::move(r));
+    }
+    plan.sheet.rows = std::move(rows);
+    return plan;
+}
+
+bool verify_packed(const Zip& z, const Edit& e, std::string& err) {
+    for (auto& a : e.add) {
+        if (a.disk.empty()) continue;
+        const int k = z.find(a.name);
+        uint64_t sz = 0;
+        uint32_t c = 0;
+        if (k < 0) { err = a.name + ": not in the archive"; return false; }
+        if (!file_crc(a.disk, sz, c)) { err = a.disk + ": cannot be read"; return false; }
+        const Item& it = z.items()[(size_t)k];
+        if (it.usize != sz || it.crc != c) { err = a.name + ": differs from " + a.disk; return false; }
+        std::vector<uint8_t> d;   // the stored data decodes to that CRC
+        if (!z.read(it, d, err)) { err = a.name + ": " + err; return false; }
+    }
+    return true;
+}
+
+int move_packed(const std::string& dir, const std::vector<std::string>& disk_paths, std::vector<std::string>& failed) {
+    std::error_code ec;
+    const fs::path root = upath(dir), dst = root / upath(kPackedFolder);
+    int n = 0;
+    std::set<fs::path> parents;
+    for (auto& d : disk_paths) {
+        const fs::path src = upath(d);
+        fs::path rel = fs::relative(src, root, ec);
+        if (ec || rel.empty() || rel.native()[0] == '.') { failed.push_back(d); ec.clear(); continue; }
+        fs::path to = dst / rel;
+        fs::create_directories(to.parent_path(), ec);
+        for (int i = 2; fs::exists(to, ec) && i < 10000; ++i)
+            to = dst / rel.parent_path() / upath(u8(rel.stem()) + " (" + std::to_string(i) + ")" + u8(rel.extension()));
+        fs::rename(src, to, ec);
+        if (ec) { failed.push_back(d); ec.clear(); continue; }
+        ++n;
+        for (fs::path p = src.parent_path(); p != root && p.has_parent_path() && p.string().size() > root.string().size(); p = p.parent_path()) parents.insert(p);
+    }
+    // empty source folders (deepest first)
+    std::vector<fs::path> ps(parents.begin(), parents.end());
+    std::sort(ps.begin(), ps.end(), [](const fs::path& a, const fs::path& b) { return a.string().size() > b.string().size(); });
+    for (auto& p : ps) if (fs::is_directory(p, ec) && fs::is_empty(p, ec)) fs::remove(p, ec);
+    return n;
 }
 
 DropSheet make_drop_sheet(const std::vector<std::string>& paths, int target) {
@@ -817,10 +1069,11 @@ void sync_index(std::vector<DocumentRef>& idx, const Zip& z, const std::map<std:
     }
     std::vector<DocumentRef> out;
     for (auto& it : z.items()) {
-        if (it.dir()) continue;
+        if (it.dir() || is_version_path(it.name)) continue;   // R25: versions belong to their file, not to the index
         DocumentRef r;
         auto o = old.find(it.name);
         if (o != old.end()) r = o->second;
+        if (o != old.end() && (o->second.size != it.usize || o->second.crc != it.crc)) r.sha256.clear();   // content changed
         r.path = it.name; r.size = it.usize; r.crc = it.crc;
         if (const LegacyFolder* l = legacy_folder(top_folder(it.name))) add_tag(r, l->tag);
         bool known = false;
@@ -1067,6 +1320,38 @@ int aoi_for(const std::vector<SideFile>& files, int program) {
         ++n; any = i;
     }
     return same_side >= 0 ? same_side : n == 1 ? any : -1;
+}
+
+// --- R25 hashes --------------------------------------------------------------------------------------------------
+std::map<std::string, std::string> hash_added(const Edit& e) {
+    std::map<std::string, std::string> h;
+    for (auto& a : e.add) {
+        const std::string x = a.disk.empty() ? sha256_hex(a.data) : sha256_file(a.disk);
+        if (!x.empty()) h[a.name] = x;
+    }
+    return h;
+}
+
+std::string entry_sha256(const Zip& z, const Item& it) {
+    std::vector<uint8_t> d;
+    std::string err;
+    return z.read(it, d, err) ? sha256_hex(d) : std::string();
+}
+
+int fill_hashes(std::vector<DocumentRef>& idx, const Zip& z, const std::map<std::string, std::string>& known, std::vector<std::string>* bad) {
+    int n = 0;
+    for (auto& r : idx) {
+        auto k = known.find(r.path);
+        if (k != known.end()) { r.sha256 = k->second; continue; }
+        const int i = z.find(r.path);
+        if (i < 0) continue;
+        const std::string h = entry_sha256(z, z.items()[(size_t)i]);
+        if (h.empty()) { if (bad) bad->push_back(r.path); continue; }
+        if (!r.sha256.empty() && r.sha256 != h && bad) bad->push_back(r.path);   // stored hash no longer matches
+        if (r.sha256.empty()) ++n;
+        r.sha256 = h;
+    }
+    return n;
 }
 
 } // namespace pcbp::io::jobzip

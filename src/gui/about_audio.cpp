@@ -122,7 +122,9 @@ void AboutSynth::render(int16_t* out, int frames) {
 } // namespace pcbp::gui
 
 #ifndef PCBP_ABOUT_AUDIO_OFFLINE
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
 #include <mmsystem.h>
 

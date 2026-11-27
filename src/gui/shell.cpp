@@ -33,6 +33,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <cctype>
+#include <cwctype>   // std::iswdigit
 #include <deque>
 #include <map>
 #include <set>
@@ -42,6 +44,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM,
 
 namespace pcbp::app { void recovery_startup(); }
 namespace pcbp::gui {
+void show_migrate_dialog();   // gui/migrate_dialog.cpp (declared at namespace scope: see builtin_plugins.cpp, MSVC 14.51)
 void group_ops_menu_items(const app::DocPtr& d);   // group_ops.cpp
 bool gerber_dialog_drop(const std::vector<std::wstring>&);
 bool job_files_drop(const app::DocPtr& d, const std::vector<std::wstring>& paths);   // R19b job_files_view.cpp
@@ -969,7 +972,7 @@ static bool frame_cmd(int id) {
             open_document(p);
         return true;
     }
-    case ID_FILE_MIGRATE_BATCH: { void show_migrate_dialog(); show_migrate_dialog(); return true; }   // gui/migrate_dialog.cpp
+    case ID_FILE_MIGRATE_BATCH: { show_migrate_dialog(); return true; }   // gui/migrate_dialog.cpp
     case ID_IMPORT_MACHINE: {
         std::wstring p = s.dir_programs;
         if (ui::open_file_dialog(h, L"Import Machine Program", {{L"Pick-and-place programs", L"*.h8h;*.h7h;*.h5h;*.h4h;*.e4?;*.e51;*.iss"}, {L"All files", L"*.*"}}, p)) { gui::pnp_skip_route_once(); open_document(p); }

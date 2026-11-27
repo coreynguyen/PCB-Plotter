@@ -6,6 +6,7 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 #include <algorithm>
+#include <cmath>     // std::floor / std::ceil (MSVC 14.51 no longer pulls it in through <algorithm>)
 #include <vector>
 #include <cstring>
 

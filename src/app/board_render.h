@@ -23,7 +23,8 @@ struct BoardRenderOpts {
     bool ghost_far = false;
     float far_alpha = 0.35f;
     bool print_mode = false;        // white background friendly colours
-    // polarity markers (R15, package data): 0 hidden, 1 / 2 shown (packages with a polarity marker only)
+    // polarity markers (R15, package data): 0 hidden, 1 shown (packages with a polarity marker only),
+    // 2 = markers + every placement's pin-1 pad highlighted (R26)
     int orient_markers = 1;
     bool lead_labels = false;       // lead-index numbers on pads (hidden by default)
     const std::vector<bool>* angle_errors = nullptr;   // per comp index: machine angle not calculated

@@ -307,14 +307,16 @@ int main() {
     struct { const char* f; int v; } dbs[] = {
         {"cclib.mdb", 4}, {"Defaults.mdb", 4}, {"reports.mdb", 3}, {"labels.mdb", 3}};
     long cells = 0, rows = 0, blobs = 0, skipped = 0;
-    for (auto& d : dbs) test_db(std::string(kRoot) + "/" + d.f, d.v, cells, rows, blobs, skipped);
+    const bool have_demo = !kRootS.empty();
+    if (!have_demo) std::printf("SKIP demo .mdb comparisons: legacy_demo_root not mapped (tests/local_data.map)\n");
+    if (have_demo) for (auto& d : dbs) test_db(std::string(kRoot) + "/" + d.f, d.v, cells, rows, blobs, skipped);
 
     // Packages.Rendering (OLE) byte-for-byte + API checks.
     {
         jet::Database db;
         std::string err;
         jet::Table t;
-        if (db.open(std::string(kRoot) + "/cclib.mdb", err) && db.read_table("packages", t, err)) {
+        if (have_demo && db.open(std::string(kRoot) + "/cclib.mdb", err) && db.read_table("packages", t, err)) {
             int rc = t.col("RENDERING");
             CHECK(rc >= 0 && t.cols[static_cast<size_t>(rc)].type == jet::ColType::OLE, "Rendering col");
             size_t total = 0, maxlen = 0;
@@ -332,7 +334,7 @@ int main() {
     std::printf("compared %ld cells in %ld rows (%ld non-null MEMO/OLE); %ld cells of oracle-unsupported type 17 skipped\n",
                 cells, rows, blobs, skipped);
 
-    for (auto& d : dbs) fuzz(std::string(kRoot) + "/" + d.f, 300);
+    if (have_demo) for (auto& d : dbs) fuzz(std::string(kRoot) + "/" + d.f, 300);
 
     if (g_fail) { std::printf("FAILED: %d checks\n", g_fail); return 1; }
     std::printf("ALL PASS\n");

@@ -35,6 +35,7 @@
 #include <map>
 #include <set>
 #include <shlobj.h>
+#include <cctype>
 
 namespace pcbp::gui { std::vector<ui::Form*>& modal_stack(); }   // gform.cpp
 namespace pcbp::gui { void draw_machine_data(const app::DocPtr& d, const std::vector<std::string>& names, const std::string& cur, const std::function<void(const std::string&)>& pick); }   // R24b machine_data_ui.cpp

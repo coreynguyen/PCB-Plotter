@@ -45,6 +45,10 @@
 #include <set>
 
 namespace pcbp {
+// defined in cad_formats_v2.cpp / viewmate_plugin.cpp. Declared here, at namespace scope: declared inside the
+// function that calls them, MSVC 14.51 looked for ::register_* at link time (LNK2001 in PcbpThumb).
+void register_cad_formats_v2(PluginRegistry& r);
+void register_viewmate_import(PluginRegistry& r);
 namespace {
 
 // ---------------------------------------------------------------------------
@@ -1991,12 +1995,14 @@ void register_builtin_plugins(PluginRegistry& r) {
     {
         PluginInfo i = make_info("ipc356", "IPC-D-356 netlist", K::Importer, {"ipc", "356", "d356"}, "CAD");
         i.options = {opt_bool_def("replace", "Replace existing components", true),
-                     opt_bool_def("include_vias", "Import vias", false)};
+                     opt_bool_def("include_vias", "Import vias", false),
+                     opt_bool_def("normalise_rotation", "Recover part rotation (axis-aligned packages)", true)};
         r.add(std::make_unique<FnImporter>(i, sniff_ipc356,
             [](const std::string& path, const Options& o, Project& prj, ImportReport& rep, std::string& err) {
                 io::Ipc356Options io_;
                 io_.replace = opt_bool(o, "replace", true);
                 io_.include_vias = opt_bool(o, "include_vias");
+                io_.normalise_rotation = opt_bool(o, "normalise_rotation", true);
                 io::Ipc356Result res;
                 if (!io::import_ipc356_file(path, prj, io_, res, err)) return false;
                 rep.components_added = res.components;
@@ -2345,8 +2351,8 @@ void register_builtin_plugins(PluginRegistry& r) {
             })));
     }
     register_juki_import(r);
-    { void register_cad_formats_v2(PluginRegistry&); register_cad_formats_v2(r); }   // v2 CAD importers (cad_formats_v2.cpp)
-    { void register_viewmate_import(PluginRegistry&); register_viewmate_import(r); } // ViewMate .bin jobs (viewmate_plugin.cpp)
+    register_cad_formats_v2(r);   // v2 CAD importers (cad_formats_v2.cpp)
+    register_viewmate_import(r); // ViewMate .bin jobs (viewmate_plugin.cpp)
 }
 
 } // namespace pcbp

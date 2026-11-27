@@ -7,6 +7,7 @@
 // Deleting originals happens only inside migrate::run, after a verified
 // conversion and (when archiving) a verified archive; Recycle Bin by default.
 // ============================================================================
+#include "../io/recentre.h"
 #include "gapp.h"
 #include "../core/migrate.h"
 #include "../core/fileio.h"
@@ -278,16 +279,8 @@ void show_migrate_dialog() {
 }
 
 // "PCBPlotter.exe --migrate ..." — runs without the UI. Output goes to the parent console when there is one.
-int migrate_cli_main(const std::vector<std::wstring>& wargs) {
-    auto& reg = PluginRegistry::get();
-    if (reg.importers().empty()) {   // the CLI may run before the shell registered anything
-        register_builtin_plugins(reg);
-        load_plugins_dir(reg, exe_dir() + L"\\plugins");
-    }
-    std::vector<std::string> args;
-    for (auto& a : wargs) args.push_back(ui::U(a));
-    std::string out;
-    const int rc = mg::cli_main(args, out);
+// where a headless command's report goes: the redirected file / pipe, the console it was started from, else a box
+static void cli_show(const std::string& out, int rc, const wchar_t* title) {
     HANDLE hs = GetStdHandle(STD_OUTPUT_HANDLE);
     DWORD ft = (hs && hs != INVALID_HANDLE_VALUE) ? GetFileType(hs) : FILE_TYPE_UNKNOWN;
     if (ft == FILE_TYPE_DISK || ft == FILE_TYPE_PIPE) {   // redirected: "PCBPlotter --migrate ... > report.txt"
@@ -303,9 +296,32 @@ int migrate_cli_main(const std::vector<std::wstring>& wargs) {
         }
         FreeConsole();
     } else {
-        MessageBoxW(nullptr, ui::W(out.size() > 6000 ? out.substr(0, 6000) + "\n..." : out).c_str(), L"PCB Plotter - Migrate",
+        MessageBoxW(nullptr, ui::W(out.size() > 6000 ? out.substr(0, 6000) + "\n..." : out).c_str(), title,
                     MB_OK | (rc ? MB_ICONWARNING : MB_ICONINFORMATION));
     }
+}
+
+int migrate_cli_main(const std::vector<std::wstring>& wargs) {
+    auto& reg = PluginRegistry::get();
+    if (reg.importers().empty()) {   // the CLI may run before the shell registered anything
+        register_builtin_plugins(reg);
+        load_plugins_dir(reg, exe_dir() + L"\\plugins");
+    }
+    std::vector<std::string> args;
+    for (auto& a : wargs) args.push_back(ui::U(a));
+    std::string out;
+    const int rc = mg::cli_main(args, out);
+    cli_show(out, rc, L"PCB Plotter - Migrate");
+    return rc;
+}
+
+// R25: PCBPlotter --recentre <program> ... --project <file.pcbp>   (io/recentre.h)
+int recentre_cli_main(const std::vector<std::wstring>& wargs) {
+    std::vector<std::string> args;
+    for (auto& a : wargs) args.push_back(ui::U(a));
+    std::string out;
+    const int rc = io::recentre_cli(args, out);
+    cli_show(out, rc, L"PCB Plotter - Recentre");
     return rc;
 }
 

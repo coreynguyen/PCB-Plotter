@@ -30,6 +30,9 @@
     <ClCompile Include="src\core\fileio.cpp">
       <Filter></Filter>
     </ClCompile>
+    <ClCompile Include="src\core\footprint_canon.cpp">
+      <Filter></Filter>
+    </ClCompile>
     <ClCompile Include="src\core\formula.cpp">
       <Filter></Filter>
     </ClCompile>
@@ -37,6 +40,9 @@
       <Filter></Filter>
     </ClCompile>
     <ClCompile Include="src\core\formula_funcs.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\gerber_set.cpp">
       <Filter></Filter>
     </ClCompile>
     <ClCompile Include="src\core\group_ops.cpp">
@@ -63,6 +69,9 @@
     <ClCompile Include="src\core\package_resolve.cpp">
       <Filter></Filter>
     </ClCompile>
+    <ClCompile Include="src\core\panel_auto.cpp">
+      <Filter></Filter>
+    </ClCompile>
     <ClCompile Include="src\core\panelize.cpp">
       <Filter></Filter>
     </ClCompile>
@@ -75,10 +84,16 @@
     <ClCompile Include="src\core\plot_align.cpp">
       <Filter></Filter>
     </ClCompile>
+    <ClCompile Include="src\core\program_gen.cpp">
+      <Filter></Filter>
+    </ClCompile>
     <ClCompile Include="src\core\project.cpp">
       <Filter></Filter>
     </ClCompile>
     <ClCompile Include="src\core\project_io.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\sha256.cpp">
       <Filter></Filter>
     </ClCompile>
     <ClCompile Include="src\core\sheet.cpp">
@@ -183,7 +198,25 @@
     <ClCompile Include="src\io\jet_write.cpp">
       <Filter></Filter>
     </ClCompile>
+    <ClCompile Include="src\io\juki_autopart.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\juki_builtin.cpp">
+      <Filter></Filter>
+    </ClCompile>
     <ClCompile Include="src\io\juki_import.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\juki_record.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\juki_research.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\juki_research_rules.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\juki_resize.cpp">
       <Filter></Filter>
     </ClCompile>
     <ClCompile Include="src\io\juki_writer.cpp">
@@ -196,6 +229,9 @@
       <Filter></Filter>
     </ClCompile>
     <ClCompile Include="src\io\m1_bom.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\machine_history.cpp">
       <Filter></Filter>
     </ClCompile>
     <ClCompile Include="src\io\mail_eml.cpp">
@@ -226,6 +262,9 @@
       <Filter></Filter>
     </ClCompile>
     <ClCompile Include="src\io\program_view.cpp">
+      <Filter></Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\recentre.cpp">
       <Filter></Filter>
     </ClCompile>
     <ClCompile Include="src\io\rtf.cpp">
@@ -462,6 +501,9 @@
     <ClInclude Include="src\core\fileio.h">
       <Filter></Filter>
     </ClInclude>
+    <ClInclude Include="src\core\footprint_canon.h">
+      <Filter></Filter>
+    </ClInclude>
     <ClInclude Include="src\core\formula.h">
       <Filter></Filter>
     </ClInclude>
@@ -469,6 +511,9 @@
       <Filter></Filter>
     </ClInclude>
     <ClInclude Include="src\core\geom.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\gerber_set.h">
       <Filter></Filter>
     </ClInclude>
     <ClInclude Include="src\core\group_ops.h">
@@ -498,6 +543,9 @@
     <ClInclude Include="src\core\package_resolve.h">
       <Filter></Filter>
     </ClInclude>
+    <ClInclude Include="src\core\panel_auto.h">
+      <Filter></Filter>
+    </ClInclude>
     <ClInclude Include="src\core\panelize.h">
       <Filter></Filter>
     </ClInclude>
@@ -510,6 +558,9 @@
     <ClInclude Include="src\core\plot_align.h">
       <Filter></Filter>
     </ClInclude>
+    <ClInclude Include="src\core\program_gen.h">
+      <Filter></Filter>
+    </ClInclude>
     <ClInclude Include="src\core\project.h">
       <Filter></Filter>
     </ClInclude>
@@ -517,6 +568,9 @@
       <Filter></Filter>
     </ClInclude>
     <ClInclude Include="src\core\selection_sets.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\sha256.h">
       <Filter></Filter>
     </ClInclude>
     <ClInclude Include="src\core\sheet.h">
@@ -606,7 +660,25 @@
     <ClInclude Include="src\io\jet_write.h">
       <Filter></Filter>
     </ClInclude>
+    <ClInclude Include="src\io\juki_autopart.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\juki_builtin.h">
+      <Filter></Filter>
+    </ClInclude>
     <ClInclude Include="src\io\juki_import.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\juki_record.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\juki_research.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\juki_research_rules.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\juki_resize.h">
       <Filter></Filter>
     </ClInclude>
     <ClInclude Include="src\io\juki_writer.h">
@@ -619,6 +691,9 @@
       <Filter></Filter>
     </ClInclude>
     <ClInclude Include="src\io\m1_bom.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\machine_history.h">
       <Filter></Filter>
     </ClInclude>
     <ClInclude Include="src\io\mail_eml.h">
@@ -649,6 +724,9 @@
       <Filter></Filter>
     </ClInclude>
     <ClInclude Include="src\io\program_view.h">
+      <Filter></Filter>
+    </ClInclude>
+    <ClInclude Include="src\io\recentre.h">
       <Filter></Filter>
     </ClInclude>
     <ClInclude Include="src\io\richdoc.h">

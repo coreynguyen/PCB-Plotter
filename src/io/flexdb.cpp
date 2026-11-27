@@ -2,6 +2,7 @@
 // The classifier is a faithful port of FlexAssign.hta (classify / buildPriors / nearestByDims ...).
 #include "flexdb.h"
 #include "../core/fileio.h"
+#include "machine_history.h"
 
 #include <algorithm>
 #include <array>
@@ -9,6 +10,7 @@
 #include <cstdio>
 #include <cstring>
 #include <regex>
+#include <cctype>
 
 namespace pcbp::flexdb {
 
@@ -565,6 +567,36 @@ bool ComponentDB::create_from_template(const std::string& tpl, std::string& err)
     return true;
 }
 
+bool ComponentDB::create_empty_from(const std::string& src, std::string& err) {
+    if (!open(src, err)) return false;
+    path_.clear();
+    static const char* keep_all[] = {"FEEDERTYPE", "FLEXDBINFO", "LOOKUP", "PKGCLASS", "VACUUMDFLT", "WRITELOCKINFO"};
+    for (const std::string& name : ed_.tables()) {
+        const std::string k = upper(name);
+        bool keep = false;
+        for (const char* x : keep_all) keep |= k == x;
+        if (keep) continue;
+        jet::ETable* t = table(name, &err);
+        if (!t) return false;
+        std::vector<jet::ERow> kept;
+        if (k == "SIDE") {                       // default side row
+            int c = t->col("SideID");
+            for (size_t r = 0; r < t->rows.size(); ++r) if (t->get_i(r, c) == 1) kept.push_back(t->rows[r]);
+        } else if (k == "COPLAGX4") {            // default coplanarity row
+            int c = t->col("IsDefault"), i = t->col("CoplaID");
+            for (size_t r = 0; r < t->rows.size(); ++r) if (t->get_i(r, c) != 0 || (kept.empty() && t->get_i(r, i) == 1)) { kept.push_back(t->rows[r]); break; }
+        }
+        if (kept.size() == t->rows.size()) continue;
+        t->rows = std::move(kept);
+        t->reset_autonumber = true;   // a new database numbers its components from 1
+        touched_.insert(k);
+    }
+    jet::ETable* c = table("Compo", &err);
+    if (!c) { open_ = false; return false; }
+    touched_.insert("COMPO");   // a new database is unsaved
+    return true;
+}
+
 jet::ETable* ComponentDB::table(const std::string& name, std::string* err) {
     std::string k = upper(name);
     auto it = t_.find(k);
@@ -583,6 +615,7 @@ bool ComponentDB::save(const std::string& p, std::string& err) {
         if (it == t_.end()) continue;
         if (!ed_.store(it->second, err)) return false;
     }
+    ed_.claim_owned_pages();   // page 1 must not list any page a table owns as free (older exports did)
     if (!ed_.save(p, err)) return false;
     touched_.clear();
     path_ = p;
@@ -644,7 +677,7 @@ int ComponentDB::add_part(const std::string& name, const std::string& desc, cons
     std::vector<uint8_t> k;
     if (!jet::jet4_text_key(name, k)) { err = "unsupported character in component name '" + name + "'"; return 0; }
     if (find(name)) { err = "component '" + name + "' already exists"; return 0; }
-    int maxid = (int)ed_.autonumber("Compo");
+    int maxid = c->reset_autonumber ? 0 : (int)ed_.autonumber("Compo");
     int cid = c->col("CompoID");
     for (size_t r = 0; r < c->rows.size(); ++r) maxid = std::max(maxid, (int)c->get_i(r, cid));
     int id = maxid + 1;
@@ -1053,7 +1086,10 @@ int Classifier::profile_named(const std::string& fam, int pins, std::vector<int>
     return best;
 }
 
-Guess Classifier::classify(const std::string& name, const std::string& desc, double w, double l) const {
+Guess Classifier::classify(const std::string& name, const std::string& desc_in, double w, double l) const {
+    // "CAP0402", "RES0603K" -> "CAP 0402": size codes glued to the family word
+    static const RX glued(R"(([A-Za-z])(0201|0402|0603|0805|1206|1210|1812|2010|2512)(?![0-9]))");
+    const std::string desc = std::regex_replace(desc_in, glued, "$1 $2");
     Guess g;
     if (!lib_) { g.why = "no library"; return g; }
     std::string txt = desc + " | " + name;
@@ -1501,6 +1537,244 @@ Evaluation evaluate(const Classifier& cl, const std::string& name, const std::st
         }
     }
     return ev;
+}
+
+// ------------------------------------------------------------------------------------------------
+namespace {
+std::string lower_s(std::string s) { for (auto& c : s) c = (char)std::tolower((unsigned char)c); return s; }
+struct FamRule { const char* rx; std::vector<int> cls; std::vector<const char*> words; };
+const std::vector<FamRule>& fam_rules() {
+    static const std::vector<FamRule> r = {
+        {R"(\b(RES|RESISTOR|OHMS?)\b)", {1, 3}, {"res"}},
+        {R"(\b(CAP|CAPACITOR)\b)", {1, 3, 6}, {"cap", "tant"}},
+        {R"(\b(IND|INDUCTORS?|FERRITE|BEAD|CMC|CHOKES?|COIL)\b)", {1, 3, 6, 251, 999}, {"ind", "coil", "bead", "shield", "smc", "choke"}},
+        {R"(\bLED\b)", {14, 1}, {"led"}},
+        {R"(\b(OSC|XTAL|CRYSTAL|RESONATOR)\b)", {1, 251, 999}, {"osc", "xtal", "crys"}},
+        {R"(\bSOD-?\d+)", {11, 3, 1}, {"sod"}},
+        {R"(\bSOT-?\d+|\bSC-?70|\bSC-?88)", {11}, {"sot"}},
+        {R"(\b(QFN|DFN|VQFN|WQFN|SON|LFCSP|\d+LFCSP)\b)", {120, 101, 102, 104}, {"qfn", "dfn", "vqfn", "son"}},
+        {R"(\b(LQFP|TQFP|QFP)\b)", {102, 106}, {"qfp", "lqfp", "tqfp"}},
+        {R"(TSSOP)", {101, 104}, {"tssop"}},
+        {R"(SSOP|MSOP)", {101, 104}, {"ssop", "msop"}},
+        {R"(\bSOIC|\bSO-?\d+\b|\bSOP\b)", {101, 109}, {"so", "soic", "sol", "sop"}},
+        {R"(\bBGA\b)", {107, 110}, {"bga"}},
+        {R"(\b(CONN|HEADER|SOCKET|TERMINAL|RCPT|PLUG)\b)", {201, 202, 203, 251, 999}, {"conn", "header", "hdr"}},
+        {R"(\b(DIODE|TVS|ZENER|SCHOTTKY|RECTIFIER)\b)", {11, 3, 1}, {"sod", "sm", "do", "melf"}},
+    };
+    return r;
+}
+}  // namespace
+
+BodyPick pick_by_body(const Library& lib, const std::string& desc, double l, double w, double h, int tape, int nozzle, const std::set<int>* owned,
+                      int pins) {
+    BodyPick best;
+    if (l <= 0 || w <= 0) { best.why = "no body size"; return best; }
+    std::string D = upper(desc);
+    std::vector<int> cls;
+    std::vector<const char*> words;
+    for (auto& r : fam_rules()) {
+        static std::map<const char*, std::regex> cache;
+        auto it = cache.find(r.rx);
+        if (it == cache.end()) it = cache.emplace(r.rx, std::regex(r.rx)).first;
+        if (std::regex_search(D, it->second)) {
+            if (cls.empty()) cls = r.cls;          // first matching family decides the class set
+            words.insert(words.end(), r.words.begin(), r.words.end());
+        }
+    }
+    const std::string chip = history::chip_code_in(D);
+    char nz[8] = "";
+    if (nozzle) std::snprintf(nz, sizeof nz, "%d", nozzle);
+    for (const Profile& p : lib.profiles) {
+        double pl = std::max(p.w, p.l), pw = std::min(p.w, p.l);
+        if (pl <= 0 || pw <= 0) continue;
+        double c = std::fabs(std::log(l / pl)) + std::fabs(std::log(w / pw));
+        if (h > 0 && p.h > 0) c += 0.3 * std::fabs(std::log(std::max(h, 0.1) / std::max(p.h, 0.1)));
+        if (tape && p.tape_type && p.tape_type != tape) c += 0.6;
+        if (!cls.empty() && std::find(cls.begin(), cls.end(), p.cls) == cls.end()) c += 1.0;
+        std::string nm = lower_s(p.name);
+        if (!words.empty()) {
+            bool hit = false;
+            for (const char* t : words) {
+                size_t k = nm.find(t);
+                if (k != std::string::npos && (k == 0 || !std::isalpha((unsigned char)nm[k - 1]))) { hit = true; break; }
+            }
+            if (!hit) {
+                // IC families are named in the library (QFN24, SOIC8 ...): a miss there is a different package
+                static const char* ic[] = {"qfn", "dfn", "qfp", "lqfp", "tqfp", "soic", "so", "sop", "ssop", "tssop", "msop", "bga", "sot", "sod"};
+                bool icf = false;
+                for (const char* t : words) for (const char* q : ic) if (!std::strcmp(t, q)) icf = true;
+                c += icf ? 1.0 : 0.5;
+            }
+        }
+        if (!chip.empty() && !cls.empty() && (cls[0] == 1)) c += nm.find(chip) != std::string::npos ? 0 : 0.8;
+        if (nozzle) {
+            static const std::regex any50x(R"((^|[^0-9])50[0-9]([^0-9]|$))");
+            bool has = false;
+            for (size_t k = nm.find(nz); k != std::string::npos; k = nm.find(nz, k + 1)) {
+                bool lb = k == 0 || !std::isdigit((unsigned char)nm[k - 1]), rb = k + 3 >= nm.size() || !std::isdigit((unsigned char)nm[k + 3]);
+                if (lb && rb) { has = true; break; }
+            }
+            if (!has && std::regex_search(nm, any50x)) c += 0.15;
+        }
+        if (owned && !owned->empty() && p.nozzle && !owned->count(p.nozzle)) c += 1.0;   // needs a nozzle the shop does not have
+        // a profile named for another part family ("Res4527" for a choke, "QFP48" for an inductor)
+        if (!words.empty()) {
+            static const char* fams[] = {"res", "cap", "ind", "coil", "led", "qfp", "lqfp", "tqfp", "qfn", "dfn", "sot", "sod", "soic", "sop",
+                                         "ssop", "tssop", "bga", "tant", "melf", "xtal", "osc", "header", "conn"};
+            size_t a = 0;
+            while (a < nm.size() && !std::isalpha((unsigned char)nm[a])) ++a;
+            size_t b = a;
+            while (b < nm.size() && std::isalpha((unsigned char)nm[b])) ++b;
+            const std::string tok = nm.substr(a, b - a);
+            bool other = false, mine = false;
+            for (const char* f : fams) if (tok == f) other = true;
+            for (const char* t : words) if (tok == t || tok.rfind(t, 0) == 0) mine = true;
+            if (other && !mine) c += 0.8;
+        }
+        if (pins > 2) {
+            int pn = pins_in_name(p.name);
+            if (pn) c += std::min(0.8, 0.15 * std::min(std::abs(pn - pins), std::abs(pn - (pins - 1))));   // pins - 1: exposed pad
+        }
+        if (c < best.cost) { best.cost = c; best.pid = p.id; best.why = p.name; }
+    }
+    return best;
+}
+
+int profile_for_code(const Library& lib, const std::vector<std::string>& aliases, const std::set<int>* owned, const std::map<int, int>* used) {
+    int best = 0;
+    double bs = -1e9;
+    for (const Profile& p : lib.profiles) {
+        const std::string n = history::norm_code(p.name);
+        int rank = -1;
+        for (size_t i = 0; i < aliases.size() && rank < 0; ++i) {
+            const std::string& a = aliases[i];
+            if (n.compare(0, a.size(), a) != 0) continue;
+            char nx = n.size() > a.size() ? n[a.size()] : ' ';
+            if (std::isdigit((unsigned char)nx)) continue;                  // SOD123 must not take SOD1234
+            if (std::isalpha((unsigned char)nx) && nx != 'F') continue;      // ... nor SOT23 take SOT23A
+            rank = (int)i;
+        }
+        if (rank < 0) continue;
+        double sc = -rank * 0.5;                                           // canonical alias first
+        if (owned && !owned->empty() && p.nozzle) sc += owned->count(p.nozzle) ? 2.0 : -4.0;
+        if (used) { auto u = used->find(p.id); if (u != used->end()) sc += std::min(1.5, 0.1 * u->second); }
+        sc -= 0.02 * (double)p.name.size();                                // plain "SOD123" over "SOD123 special"
+        if (sc > bs) { bs = sc; best = p.id; }
+    }
+    return best;
+}
+
+int owned_twin(const Library& lib, int pid, const std::set<int>& owned) {
+    const Profile* p = lib.find(pid);
+    if (!p || owned.empty() || !p->nozzle || owned.count(p->nozzle)) return pid;
+    const double pl = std::max(p->l, p->w), pw = std::min(p->l, p->w);
+    int best = 0;
+    double bc = 1e9;
+    for (const Profile& q : lib.profiles) {
+        if (!q.nozzle || !owned.count(q.nozzle) || q.cls != p->cls) continue;
+        double ql = std::max(q.l, q.w), qw = std::min(q.l, q.w);
+        if (ql <= 0 || qw <= 0 || pl <= 0 || pw <= 0) continue;
+        double c = std::fabs(std::log(ql / pl)) + std::fabs(std::log(qw / pw));
+        if (c > 0.15) continue;
+        if (q.tape_kind != p->tape_kind) c += 0.3;
+        if (Classifier::base_size(q.name) != Classifier::base_size(p->name)) c += 0.2;
+        // same family word ("Cap" stays "Cap")
+        std::string a = p->name.substr(0, 3), b = q.name.substr(0, 3);
+        for (auto& ch : a) ch = (char)std::tolower((unsigned char)ch);
+        for (auto& ch : b) ch = (char)std::tolower((unsigned char)ch);
+        if (a != b) c += 0.1;
+        if (c < bc) { bc = c; best = q.id; }
+    }
+    return best;
+}
+
+Teach teach_part(const Classifier& cls, const Library& lib, const history::History& hist, const std::string& name, const std::string& desc,
+                 double ext_l, double ext_w, bool use_hist, const std::string& pkg_name, double fp_l, double fp_w) {
+    Teach t;
+    const std::set<int>& owned = hist.owned_nozzles();
+    // package evidence: a code in the description wins over the CAD package name; IPC names give a body
+    history::PkgBody pc, ipc;
+    const bool code_in_desc = history::package_code(desc, pc);
+    bool has_code = code_in_desc || history::package_code(pkg_name, pc);
+    bool has_ipc = history::ipc_body(pkg_name, ipc);
+    if (!has_code && has_ipc && !ipc.code.empty()) { pc = ipc; has_code = true; }
+    // family word implied by the land-pattern name, for the body pick ("INDM5552X300N" -> inductor)
+    std::string fdesc = desc;
+    {
+        std::string u = pkg_name;
+        for (auto& c : u) c = (char)std::toupper((unsigned char)c);
+        static const std::pair<const char*, const char*> pre[] = {
+            {"INDM", "INDUCTOR"}, {"INDC", "INDUCTOR"}, {"CAPC", "CAP"}, {"CAPM", "CAP"}, {"CAPT", "CAP"}, {"CAPAE", "CAP"}, {"RESC", "RES"}, {"RESM", "RES"},
+            {"LEDC", "LED"}, {"DIOM", "DIODE"}, {"DIOC", "DIODE"}, {"SOD", "DIODE"}, {"VQFN", "QFN"}, {"WQFN", "QFN"}, {"QFN", "QFN"}, {"DFN", "DFN"},
+            {"SON", "DFN"}, {"SOIC", "SOIC"}, {"SOP", "SOIC"}, {"TSSOP", "TSSOP"}, {"SSOP", "SSOP"}, {"MSOP", "MSOP"}, {"LQFP", "LQFP"},
+            {"TQFP", "TQFP"}, {"QFP", "QFP"}, {"SOT", "SOT"}, {"BGA", "BGA"}};
+        for (auto& pr : pre) if (u.rfind(pr.first, 0) == 0) { fdesc += std::string(" ") + pr.second; break; }
+    }
+    const int pins = has_ipc ? ipc.pins : has_code ? pc.pins : 0;
+    history::BodyHint hint;
+    if (has_code) { hint.l = pc.l; hint.w = pc.w; hint.h = pc.h; hint.src = pc.src; }
+    else if (has_ipc) { hint.l = ipc.l; hint.w = ipc.w; hint.h = ipc.h; hint.src = ipc.src; }
+    else if (fp_l > 0 && fp_w > 0) { hint.l = fp_l; hint.w = fp_w; hint.src = "footprint body"; }
+    t.machine = hist.propose(name, desc, ext_l, ext_w, 0, use_hist, hint.l > 0 ? &hint : nullptr);
+    const history::Proposal& m = t.machine;
+
+    auto take = [&](int pid, double conf, const std::string& route) {
+        int tw = owned_twin(lib, pid, owned);
+        if (tw && tw != pid) {
+            const Profile* a = lib.find(pid);
+            const Profile* b = lib.find(tw);
+            t.pid = tw;
+            t.profile_route = route + "; nozzle " + std::to_string(a ? a->nozzle : 0) + " not owned -> " + (b ? b->name : std::string("?"));
+            t.conf = conf * 0.95;
+            return true;
+        }
+        t.pid = pid; t.conf = conf; t.profile_route = route;
+        if (!tw) {   // no same-size profile with an owned nozzle: keep it, flag it
+            const Profile* a = lib.find(pid);
+            t.profile_route += "; needs nozzle " + std::to_string(a ? a->nozzle : 0) + " (not in the owned list, no alternative)";
+            t.conf = conf * 0.7;
+        }
+        return true;
+    };
+    Guess g = cls.classify(name, desc);
+    if (g.pid && g.conf >= 0.9) {
+        char b[32]; std::snprintf(b, sizeof b, "text %.2f: ", g.conf);
+        if (take(g.pid, std::min(0.97, g.conf), b + g.why)) return t;
+    }
+    if (has_code)
+        if (int pid = profile_for_code(lib, pc.aliases, &owned, &cls.used))
+            if (take(pid, 0.9, "package " + pc.code + " in " + (code_in_desc ? "description" : "package name"))) return t;
+    if (m.l > 0) {
+        BodyPick bp = pick_by_body(lib, fdesc, m.l, m.w, m.h, m.tape, m.nozzle, &owned, pins);
+        if (bp.pid) {
+            double c = m.from_history ? 0.8 : hint.l > 0 || m.why.find("CAD") != std::string::npos ? 0.72 : 0.6;
+            if (bp.cost > 1.5) c *= 0.7;
+            take(bp.pid, c, "body: closest library profile " + bp.why + " (" + m.why.substr(0, m.why.find(';')) + ")");
+            return t;
+        }
+    }
+    if (g.pid) take(g.pid, std::max(0.3, g.conf * 0.8), "text (low confidence): " + g.why);
+    return t;
+}
+
+bool ComponentDB::apply_machine(int cid, const history::Proposal& p, std::string& err) {
+    auto put = [&](const char* table, const char* col, int64_t v) -> bool {
+        if (!v) return true;
+        jet::ETable* t = this->table(table, &err);
+        if (!t) return true;                      // table absent in this DB generation: nothing to set
+        int k = t->col("CompoID"), c = t->col(col);
+        if (k < 0 || c < 0) return true;
+        for (size_t r = 0; r < t->rows.size(); ++r)
+            if (t->get_i(r, k) == cid && !t->set_i(r, c, v)) { err = std::string("cannot set ") + table + "." + col; return false; }
+        touched_.insert(upper(table));
+        return true;
+    };
+    if (p.l > 0 && p.w > 0) {
+        if (!put("Compo", "Width", std::llround(std::max(p.l, p.w) * 1e4)) || !put("Compo", "Length", std::llround(std::min(p.l, p.w) * 1e4))) return false;
+        if (p.h > 0 && !put("Compo", "Height", std::llround(p.h * 1e4))) return false;
+    }
+    return put("Feeder", "TapeTypeID", p.tape) && put("Feeder", "Pitch", p.pitch) && put("Laser", "GX4NozzleNo", p.nozzle) &&
+           put("LaserFx3", "NozzleNo", p.nozzle);
 }
 
 } // namespace pcbp::flexdb

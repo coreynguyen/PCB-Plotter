@@ -66,10 +66,14 @@ const char* av_kind(ULONG_PTR k) { return k == 0 ? "reading" : k == 1 ? "writing
 // address at [RSP]; RSP is bounds-checked against this thread's stack so the walk never faults.
 USHORT walk_context(const CONTEXT& start, void** out, USHORT max) {
     CONTEXT c = start;
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
     NT_TIB* tib = (NT_TIB*)NtCurrentTeb();   // gs:[0x30]; GCC misreads the segment read as a null array
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
+#endif
     const DWORD64 lo = (DWORD64)tib->StackLimit, hi = (DWORD64)tib->StackBase;
     USHORT n = 0;
     while (n < max && c.Rip) {
@@ -192,7 +196,13 @@ void guard_init() {
 }
 } // namespace
 
-__attribute__((noinline)) bool guarded_call(void (*fn)(void*), void* arg, unsigned long* code) {
+// Must never be inlined: the VEH resumes at the RtlCaptureContext return inside THIS frame.
+#if defined(_MSC_VER)
+#define PCBP_NOINLINE __declspec(noinline)
+#else
+#define PCBP_NOINLINE __attribute__((noinline))
+#endif
+PCBP_NOINLINE bool guarded_call(void (*fn)(void*), void* arg, unsigned long* code) {
     guard_init();
     if (g_tls_ctx == TLS_OUT_OF_INDEXES || g_tls_code == TLS_OUT_OF_INDEXES) { fn(arg); return true; }
     CONTEXT* volatile prev = (CONTEXT*)TlsGetValue(g_tls_ctx);   // nesting: restore the outer guard

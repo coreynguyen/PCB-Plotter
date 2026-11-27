@@ -579,13 +579,17 @@ static void test_ipc356() {
 }
 
 int main() {
-    test_text_table();
-    Project cad;
-    test_gencad(cad);
-    test_centroid_vs_gencad(cad);
-    test_fusion(cad);
-    test_bom(cad);
-    test_gencad_roundtrip(cad);
+    if (kRoot.empty()) {
+        std::printf("SKIP GenCAD/centroid/BOM demo tests: legacy_demo_root not mapped (tests/local_data.map)\n");
+    } else {
+        test_text_table();
+        Project cad;
+        test_gencad(cad);
+        test_centroid_vs_gencad(cad);
+        test_fusion(cad);
+        test_bom(cad);
+        test_gencad_roundtrip(cad);
+    }
     test_centroid_synthetic();
     test_ipc356();
     std::printf("\n%d passed, %d failed\n", g_pass, g_fail);

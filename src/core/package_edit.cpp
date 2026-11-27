@@ -189,7 +189,10 @@ void pkg_geom_rotate(Package& p, double deg) {
         d.rot = norm_deg(d.rot + deg);
         if (ortho && std::fabs(d.rot) < 1e-9) d.rot = 0;
     }
-    for (auto& g : p.body) rot_prim(g, deg, ortho);
+    // a body generated from the pads is rebuilt around the rotated pads (rotating the old box off-axis gave a
+    // diamond around axis-aligned pads); CAD / user artwork rotates with the leads
+    if (p.body_source == "pads" && !p.shape_confirmed && !p.body.empty()) p.auto_body();
+    else for (auto& g : p.body) rot_prim(g, deg, ortho);
     for (auto& g : p.marker_art) rot_prim(g, deg, ortho);
     if (p.marker_user_pos) p.marker_pos = rotate(p.marker_pos, deg);
     p.marker_rot = norm_deg(p.marker_rot + deg);   // R15: arrow turns with the artwork

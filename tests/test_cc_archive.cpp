@@ -82,8 +82,9 @@ int main(int argc, char** argv) {
 
     std::ifstream idx(dir + "/index.tsv");
     if (!idx) {
-        std::printf("FAIL: cannot open %s/index.tsv (run tools/cc_extract_blobs.py first)\n", dir.c_str());
-        return 2;
+        // the extracted blobs are local-only (not in the public repo): the synthetic inflate test above still ran
+        std::printf("SKIP blob decode: no %s/index.tsv (local data from tools/cc_extract_blobs.py)\n", dir.c_str());
+        return 0;
     }
     int pkgs = 0, pkg_ok = 0, other = 0, other_ok = 0;
     std::map<std::string, cc::PackageRendering> byname;
