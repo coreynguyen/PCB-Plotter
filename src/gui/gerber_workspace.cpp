@@ -847,14 +847,16 @@ private:
     // (true = board outline = Project::panel_frame, false = circuit outline = board_frame). mode 0 = draw a
     // rectangle (drag / two clicks, snapped), 1 = pick Gerber line / arc / region elements across layers.
     struct FrameCand { std::vector<Vec2> outline; BBox box; bool pending = false; int n = 0; bool prefer_board = false; int corners = 0; Vec2 c0;
-                       int mode = 0; std::vector<Hit> picks; int drag_corner = -1; } fsel_;
+                       int mode = 0; std::vector<Hit> picks; int drag_corner = -1;
+                       std::string why; int gaps = 0; } fsel_;   // R26: why the picks do not close / tab gaps bridged
     // R22b (REVIEW_V21 §6.2): one Confirm for every select / draw tool (right-click, Enter, Confirm button)
     bool can_confirm() const;
     void confirm_action();
     const char* confirm_label() const;
     bool otype_open_ = false;                          // Board / Circuit choice popup after an outline Confirm
     bool otype_board_ = false;                         // last choice (popup default)
-    void draw_outline_type_popup();
+    void draw_outline_type_popup();                    // R26: launches outline_type_dialog (centred, house style)
+    void outline_type_dialog();
     bool outline_commit_as(bool board);                // through core/arrays.h (R22a API)
     void outline_draw_handles_input(bool hovered);     // Draw Outline corner handles (snapped)
     // R22b: generic Gerber element selection (pitch / detect): click / box additive, Ctrl removes
@@ -4481,6 +4483,8 @@ void GerberWorkspace::outline_rebuild() {
     }
     const gmatch::OutlineBuild ob = gmatch::build_outline(open, closed);   // same function as the commit (preview = result)
     fsel_.box = ob.box;
+    fsel_.why = ob.why;
+    fsel_.gaps = ob.gaps;
     if (ob.closed) fsel_.outline = ob.polys[0];
 }
 
@@ -4700,7 +4704,12 @@ void GerberWorkspace::confirm_action() {
     }
     switch (tool_) {
     case Tool::Digitize: accept(); break;
-    case Tool::FrameSel: otype_open_ = true; refresh(); break;
+    case Tool::FrameSel:
+        if (fsel_.mode == 1 && fsel_.outline.empty()) {   // R26: picks must close (tab gaps are bridged) before Board / Circuit
+            gui::status("Not a closed outline yet: " + (fsel_.why.empty() ? std::string("pick the remaining edge elements") : fsel_.why) + ".", ToastKind::Warning);
+            break;
+        }
+        otype_open_ = true; refresh(); break;
     case Tool::PitchPick: if (pt_.stage < 2) pitch_confirm(); else pitch_apply(); break;
     case Tool::Detect: if (dt_.stage == 0) detect_run(); else detect_apply(); break;
     case Tool::PkgWizard: wz_build(); break;
@@ -4721,38 +4730,133 @@ void GerberWorkspace::tool_exit(const std::string& msg) {
     refresh();
 }
 
-// small popup after an outline Confirm: Board or Circuit (the only choice the user has to make)
+// After an outline Confirm: Board or Circuit (the only choice the user has to make). R26: a centred dialog in the
+// house style (ui::Form) with illustrated choices and a thumbnail of the outline itself; was a cursor-anchored popup.
 void GerberWorkspace::draw_outline_type_popup() {
-    if (otype_open_) { ImGui::OpenPopup("##otype"); otype_open_ = false; }
-    if (!ImGui::BeginPopup("##otype")) return;
-    if (tool_ != Tool::FrameSel || !outline_ready()) { ImGui::CloseCurrentPopup(); ImGui::EndPopup(); return; }   // committed / cancelled meanwhile
-    ImGui::PushFont(g_font_bold);
-    ImGui::TextUnformatted("Save outline as");
-    ImGui::PopFont();
-    ImGui::TextDisabled("%s  %s", fsel_.mode == 0 ? "Rectangle" : (fsel_.outline.size() >= 3 ? "Closed contour" : "Selected elements"), fmt_wh(fsel_.box.w(), fsel_.box.h()).c_str());
-    auto choice = [&](const char* label, bool board, const char* tip) {
-        const ImU32 c = outline_col(board);
-        ImGui::PushStyleColor(ImGuiCol_Button, col_alpha(c, otype_board_ == board ? 0.85f : 0.35f));
-        ImGui::PushStyleColor(ImGuiCol_Text, otype_board_ == board ? IM_COL32(12, 12, 12, 255) : th().text);
-        const bool r = ImGui::Button(label, ImVec2(S(150), S(30)));
-        ImGui::PopStyleColor(2);
-        if (ImGui::IsItemHovered()) tooltip(tip);
-        return r;
-    };
-    int pick = -1;
-    if (choice("Board Outline", true, "Outside edge of the whole PCB / panel on the conveyor (machine board size)")) pick = 1;
-    ImGui::SameLine(0, S(6));
-    if (choice("Circuit Outline", false, "Boundary of one circuit (the reference circuit; every array instance gets its own transformed copy)")) pick = 0;
-    if (ImGui::IsKeyPressed(ImGuiKey_B, false)) pick = 1;
-    if (ImGui::IsKeyPressed(ImGuiKey_C, false)) pick = 0;
-    if (pick >= 0) {
-        otype_board_ = pick == 1;
-        ImGui::CloseCurrentPopup();
-        const bool b = otype_board_;
-        gui::defer([this, b]() { outline_commit_as(b); });
+    if (!otype_open_) return;
+    otype_open_ = false;
+    gui::defer([this]() { outline_type_dialog(); });
+}
+
+namespace {
+// Card illustration: a panel with four circuits. board = the panel edge is the outline; else one circuit is.
+void draw_outline_card_art(ImDrawList* dl, ImVec2 a, ImVec2 b, bool board, bool on) {
+    const GTheme& T = th();
+    const ImU32 hi = outline_col(board);
+    const ImU32 dim = col_alpha(T.text_dim, on ? 0.55f : 0.35f);
+    const ImU32 fill = col_alpha(IM_COL32(34, 120, 70, 255), on ? 0.55f : 0.30f);   // laminate
+    const float w = b.x - a.x, h = b.y - a.y;
+    const ImVec2 p0(a.x + w * 0.08f, a.y + h * 0.10f), p1(b.x - w * 0.08f, b.y - h * 0.10f);   // panel
+    dl->AddRectFilled(p0, p1, fill, S(3));
+    // rails (top / bottom strips) and panel fiducials
+    const float rail = (p1.y - p0.y) * 0.14f;
+    dl->AddLine(ImVec2(p0.x, p0.y + rail), ImVec2(p1.x, p0.y + rail), dim, S(1));
+    dl->AddLine(ImVec2(p0.x, p1.y - rail), ImVec2(p1.x, p1.y - rail), dim, S(1));
+    for (ImVec2 f : {ImVec2(p0.x + rail * 0.6f, p0.y + rail * 0.5f), ImVec2(p1.x - rail * 0.6f, p1.y - rail * 0.5f)}) dl->AddCircleFilled(f, S(2.2f), dim);
+    // 2 x 2 circuits
+    const float gx = (p1.x - p0.x) * 0.06f, gy = (p1.y - p0.y - 2 * rail) * 0.10f;
+    const float cw = (p1.x - p0.x - 3 * gx) / 2, ch = (p1.y - p0.y - 2 * rail - 3 * gy) / 2;
+    for (int j = 0; j < 2; ++j) for (int i = 0; i < 2; ++i) {
+        const ImVec2 c0(p0.x + gx + i * (cw + gx), p0.y + rail + gy + j * (ch + gy)), c1(c0.x + cw, c0.y + ch);
+        const bool ref = !board && i == 0 && j == 1;   // the reference circuit (lower left)
+        dl->AddRect(c0, c1, ref ? hi : dim, S(2), 0, ref ? S(2.5f) : S(1));
+        // a few parts so a "circuit" reads as one
+        const ImU32 part = ref ? col_alpha(hi, 0.8f) : dim;
+        dl->AddRectFilled(ImVec2(c0.x + cw * 0.18f, c0.y + ch * 0.25f), ImVec2(c0.x + cw * 0.45f, c0.y + ch * 0.55f), part, S(1));
+        dl->AddRectFilled(ImVec2(c0.x + cw * 0.60f, c0.y + ch * 0.30f), ImVec2(c0.x + cw * 0.78f, c0.y + ch * 0.42f), part);
+        dl->AddRectFilled(ImVec2(c0.x + cw * 0.60f, c0.y + ch * 0.58f), ImVec2(c0.x + cw * 0.78f, c0.y + ch * 0.70f), part);
+        if (!board && !ref) dl->AddRect(c0, c1, col_alpha(hi, 0.35f), S(2), 0, S(1));   // transformed copies
     }
-    if (button("Cancel", Icon::None, false, ImVec2(S(80), 0)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) ImGui::CloseCurrentPopup();
-    ImGui::EndPopup();
+    if (board) dl->AddRect(p0, p1, hi, S(3), 0, S(3));
+}
+} // namespace
+
+void GerberWorkspace::outline_type_dialog() {
+    if (tool_ != Tool::FrameSel || !outline_ready()) return;   // committed / cancelled meanwhile
+    const std::string what = fsel_.mode == 0 ? "Rectangle" : (fsel_.outline.size() >= 3 ? "Closed contour" : "Selected elements");
+    const bool single = !doc->prj.is_panel();   // one circuit: only the board outline is needed
+    struct St { bool board; } st{single ? true : otype_board_};
+    // outline thumbnail data (world)
+    std::vector<Vec2> shape = fsel_.outline;
+    const BBox box = fsel_.box;
+    if (shape.size() < 3) shape = {{box.x0, box.y0}, {box.x1, box.y0}, {box.x1, box.y1}, {box.x0, box.y1}};
+
+    ui::Form f(L"Save Outline", 520);
+    f.icon((int)Icon::Board);
+    f.subtitle(W(what + "  " + fmt_wh(box.w(), box.h())) + L"  ·  choose what this outline is");
+    f.custom("cards", [&st, &shape, &box, single](ui::Form& F, float w) {
+        const GTheme& T = th();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        // your outline (thumbnail, true aspect)
+        {
+            const float th_h = S(64);
+            const ImVec2 o = ImGui::GetCursorScreenPos();
+            ImGui::Dummy(ImVec2(w, th_h));
+            dl->AddRectFilled(o, ImVec2(o.x + w, o.y + th_h), col_alpha(T.field, 0.9f), S(6));
+            const float pad = S(8), aw = w * 0.35f - 2 * pad, ah = th_h - 2 * pad;
+            const double sc = std::min(aw / std::max(box.w(), 1e-6), ah / std::max(box.h(), 1e-6));
+            const ImVec2 c(o.x + pad + aw * 0.5f, o.y + th_h * 0.5f);
+            std::vector<ImVec2> pts;
+            for (auto& v : shape) pts.push_back(ImVec2(c.x + (float)((v.x - (box.x0 + box.x1) * 0.5) * sc), c.y - (float)((v.y - (box.y0 + box.y1) * 0.5) * sc)));
+            dl->AddPolyline(pts.data(), (int)pts.size(), outline_col(st.board), ImDrawFlags_Closed, S(2));
+            const ImVec2 tp(o.x + w * 0.38f, o.y + S(10));
+            dl->AddText(g_font_bold, ImGui::GetFontSize(), tp, T.text, "Your outline");
+            const std::string d = fmt_wh(box.w(), box.h());
+            dl->AddText(ImVec2(tp.x, tp.y + ImGui::GetFontSize() + S(4)), T.text_dim, d.c_str());
+            dl->AddText(ImVec2(tp.x, tp.y + 2 * (ImGui::GetFontSize() + S(4))), T.text_dim,
+                        st.board ? "will be saved as the Board Outline" : "will be saved as the Circuit Outline");
+        }
+        ImGui::Dummy(ImVec2(0, S(6)));
+        // two cards
+        const float gap = S(10), cw = (w - gap) * 0.5f, art_h = S(130);
+        const float ch = art_h + ImGui::GetFontSize() * 4.6f + S(16);
+        auto card = [&](bool board, const char* id, const char* title, const char* key, const char* desc, const char* badge = nullptr) {
+            const bool on = st.board == board;
+            const ImVec2 o = ImGui::GetCursorScreenPos();
+            ImGui::InvisibleButton(id, ImVec2(cw, ch));
+            const bool hov = ImGui::IsItemHovered();
+            if (ImGui::IsItemClicked()) st.board = board;
+            if (hov && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { st.board = board; F.close(true); }
+            const ImVec2 e(o.x + cw, o.y + ch);
+            dl->AddRectFilled(o, e, on ? col_alpha(T.sel, 0.22f) : (hov ? T.field_hover : T.field), S(8));
+            dl->AddRect(o, e, on ? T.accent : T.border, S(8), 0, on ? S(2) : S(1));
+            draw_outline_card_art(dl, ImVec2(o.x + S(8), o.y + S(8)), ImVec2(e.x - S(8), o.y + S(8) + art_h), board, on);
+            // radio + title + key hint
+            const float ty = o.y + S(14) + art_h;
+            const ImVec2 rc(o.x + S(18), ty + ImGui::GetFontSize() * 0.5f);
+            dl->AddCircle(rc, S(6), on ? T.accent : T.text_dim, 0, S(1.5f));
+            if (on) dl->AddCircleFilled(rc, S(3.2f), T.accent);
+            dl->AddText(g_font_bold, ImGui::GetFontSize(), ImVec2(o.x + S(30), ty), T.text, title);
+            const float kw = ImGui::CalcTextSize(key).x;
+            dl->AddRectFilled(ImVec2(e.x - kw - S(20), ty - S(1)), ImVec2(e.x - S(10), ty + ImGui::GetFontSize() + S(1)), col_alpha(T.text_dim, 0.18f), S(3));
+            dl->AddText(ImVec2(e.x - kw - S(15), ty), T.text_dim, key);
+            if (badge) {   // e.g. "Not needed: single circuit"
+                const ImVec2 bs = ImGui::CalcTextSize(badge);
+                const ImVec2 b0(e.x - bs.x - S(18), o.y + S(12)), b1(e.x - S(10), o.y + S(14) + bs.y);
+                dl->AddRectFilled(b0, b1, col_alpha(T.panel, 0.92f), S(4));
+                dl->AddRect(b0, b1, T.warn, S(4));
+                dl->AddText(ImVec2(b0.x + S(4), b0.y + S(1)), T.warn, badge);
+            }
+            // description (wrapped)
+            ImGui::PushClipRect(o, e, true);
+            dl->AddText(g_font, ImGui::GetFontSize(), ImVec2(o.x + S(12), ty + ImGui::GetFontSize() + S(6)), T.text_dim, desc, nullptr, cw - S(24));
+            ImGui::PopClipRect();
+        };
+        card(true, "##ob", "Board Outline", "B",
+             "Outside edge of the whole PCB / panel as it rides the conveyor: the machine board size.");
+        ImGui::SameLine(0, gap);
+        card(false, "##oc", "Circuit Outline", "C",
+             single ? "Only needed on a panel with more than one circuit: the edge of one circuit, copied to every instance."
+                    : "Edge of one circuit (the reference). Every array instance gets its own transformed copy.",
+             single ? "Not needed: single circuit" : nullptr);
+        if (ImGui::IsKeyPressed(ImGuiKey_B, false)) st.board = true;
+        if (ImGui::IsKeyPressed(ImGuiKey_C, false)) st.board = false;
+        if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false) || ImGui::IsKeyPressed(ImGuiKey_RightArrow, false)) st.board = !st.board;
+    });
+    f.ok_text(L"Save Outline");
+    if (!f.run(nullptr)) return;
+    otype_board_ = st.board;
+    if (tool_ == Tool::FrameSel && outline_ready()) outline_commit_as(st.board);
 }
 
 // Draw Outline: the rectangle's four corners are handles; dragging one snaps it to Gerber features
@@ -4795,9 +4899,9 @@ bool GerberWorkspace::outline_commit_as(bool board) {
     }
     std::string err;
     bool ok = false, contour = false;
-    doc->checkpoint(board ? "Set Board Outline" : "Set Circuit Outline");
-    if (fsel_.mode == 0) ok = commit_outline_rect(p, k, fsel_.box, OutlineSource::Confirmed, true, &err);
-    else {
+    int bridged = 0;
+    gmatch::OutlineBuild ob;
+    if (fsel_.mode != 0) {   // build + validate before the undo checkpoint (a refused outline leaves no empty undo step)
         std::vector<std::vector<Vec2>> open, closed;
         for (const Hit& h : fsel_.picks) {
             const gb::Layer* L = glayer(h.layer);
@@ -4806,16 +4910,25 @@ bool GerberWorkspace::outline_commit_as(bool board) {
             auto pl = gmatch::element_polyline(*L, L->objs[h.obj], lx(h.layer), cl);
             if (pl.size() >= 2) (cl ? closed : open).push_back(std::move(pl));
         }
-        const gmatch::OutlineBuild ob = gmatch::build_outline(open, closed);
-        contour = ob.closed;
-        ok = commit_outline(p, k, ob.polys, OutlineSource::Imported, true, &err);   // exact vector geometry, never rasterised
+        ob = gmatch::build_outline(open, closed);
+        if (!ob.closed) {   // R26: open chains used to be stored and drawn closed (chords across arcs / notches): refuse instead
+            gui::status("Outline not saved: " + (ob.why.empty() ? std::string("the picked elements do not form one closed outline") : ob.why) +
+                        ". Pick the missing elements, or use Draw Outline. The selection is kept.", ToastKind::Warning);
+            return false;
+        }
+        contour = true;
+        bridged = ob.gaps;
     }
+    doc->checkpoint(board ? "Set Board Outline" : "Set Circuit Outline");
+    if (fsel_.mode == 0) ok = commit_outline_rect(p, k, fsel_.box, OutlineSource::Confirmed, true, &err);
+    else ok = commit_outline(p, k, ob.polys, OutlineSource::Imported, true, &err);   // exact vector geometry, never rasterised
     if (!ok) { gui::status("Outline not saved: " + (err.empty() ? std::string("no usable geometry") : err), ToastKind::Warning); return false; }
     doc->show_frame = true;
     doc->changed(ui::CH_GEOMETRY);
     BBox b;
     for (auto& pl : board ? p.panel_frame : p.board_frame) for (auto& q : pl) b.add(q);
-    std::string msg = std::string(board ? "Board outline set: " : "Circuit outline set: ") + fmt_wh(b.w(), b.h()) + (contour ? " (closed contour from Gerber)" : fsel_.mode == 1 ? " (Gerber elements)" : " (drawn rectangle)");
+    std::string msg = std::string(board ? "Board outline set: " : "Circuit outline set: ") + fmt_wh(b.w(), b.h()) + (contour ? (bridged ? " (Gerber contour, " + std::to_string(bridged) + " tab gap(s) bridged)" : std::string(" (closed contour from Gerber)"))
+                                                                       : fsel_.mode == 1 ? std::string(" (Gerber elements)") : std::string(" (drawn rectangle)"));
     auto iss = check_outlines(p);
     if (!iss.empty()) msg += "  \xC2\xB7  check: " + (iss[0].ref.empty() ? iss[0].msg : iss[0].ref + " " + iss[0].msg) + (iss.size() > 1 ? " (+" + std::to_string(iss.size() - 1) + " more)" : "");
     undo_toast(msg);
@@ -5548,14 +5661,18 @@ void GerberWorkspace::draw_pa_card() {
     ImGui::SetNextItemWidth(-1);
     auto lbl = [&](int i, int img) {
         const Component& c = p.comps[i];
-        return c.ref + "  " + c.package + (p.instance_count(c) > 1 ? "  (circuit " + std::to_string(img + 1) + ")" : std::string());
+        return c.ref + (p.instance_count(c) > 1 ? "  (circuit " + std::to_string(img + 1) + ")" : std::string());   // R26: reference only
     };
     const std::string cur = pa_.ref >= 0 && pa_.ref < (int)p.comps.size() ? lbl(pa_.ref, pa_.image) : std::string("(click a placement)");
     if (ImGui::BeginCombo("##paref", cur.c_str(), ImGuiComboFlags_HeightLarge)) {
-        for (int i = 0; i < (int)p.comps.size(); ++i) {
-            if (p.comps[i].ref.empty()) continue;
+        // R26: sorted by reference (natural order: R2 before R10), reference names only
+        std::vector<int> order;
+        order.reserve(p.comps.size());
+        for (int i = 0; i < (int)p.comps.size(); ++i) if (!p.comps[i].ref.empty()) order.push_back(i);
+        std::stable_sort(order.begin(), order.end(), [&p](int a, int b) { return ref_less(p.comps[a].ref, p.comps[b].ref); });
+        for (int i : order) {
             ImGui::PushID(i);
-            if (ImGui::Selectable(lbl(i, 0).c_str(), i == pa_.ref)) {
+            if (ImGui::Selectable(p.comps[i].ref.c_str(), i == pa_.ref)) {
                 pa_.ref = i; pa_.image = 0;
                 BBox b = p.comp_bbox(p.comps[i]);   // zoom to the reference (a few mm around it)
                 b.inflate(4);

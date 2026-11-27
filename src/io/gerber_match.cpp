@@ -222,7 +222,31 @@ std::vector<Vec2> element_polyline(const gb::Layer&, const gb::Object& o, const 
     return pts;
 }
 
-OutlineBuild build_outline(const std::vector<std::vector<Vec2>>& segs, const std::vector<std::vector<Vec2>>& closed_in, double tol) {
+bool simple_polygon(const std::vector<Vec2>& q) {
+    const int n = (int)q.size();
+    if (n < 3) return false;
+    auto orient = [](Vec2 a, Vec2 b, Vec2 c) { const double v = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x); return (v > 1e-12) - (v < -1e-12); };
+    auto cross = [&](Vec2 a, Vec2 b, Vec2 c, Vec2 d) {
+        const int o1 = orient(a, b, c), o2 = orient(a, b, d), o3 = orient(c, d, a), o4 = orient(c, d, b);
+        return o1 * o2 < 0 && o3 * o4 < 0;   // proper crossing (touching / collinear overlap is not counted)
+    };
+    // edge boxes sorted by x for a sweep (outlines from arcs have thousands of edges)
+    std::vector<int> idx(n);
+    std::vector<double> x0(n), x1(n);
+    for (int i = 0; i < n; ++i) { const Vec2 a = q[i], b = q[(i + 1) % n]; x0[i] = std::min(a.x, b.x); x1[i] = std::max(a.x, b.x); idx[i] = i; }
+    std::sort(idx.begin(), idx.end(), [&](int a, int b) { return x0[a] < x0[b]; });
+    for (int ii = 0; ii < n; ++ii) {
+        const int i = idx[ii];
+        for (int jj = ii + 1; jj < n && x0[idx[jj]] <= x1[i]; ++jj) {
+            const int j = idx[jj];
+            if (std::abs(i - j) <= 1 || std::abs(i - j) == n - 1) continue;   // neighbours share a vertex
+            if (cross(q[i], q[(i + 1) % n], q[j], q[(j + 1) % n])) return false;
+        }
+    }
+    return true;
+}
+
+OutlineBuild build_outline(const std::vector<std::vector<Vec2>>& segs, const std::vector<std::vector<Vec2>>& closed_in, double tol, double max_gap) {
     OutlineBuild r;
     for (auto& s : segs) for (auto& q : s) r.box.add(q);
     for (auto& s : closed_in) for (auto& q : s) r.box.add(q);
@@ -270,6 +294,49 @@ OutlineBuild build_outline(const std::vector<std::vector<Vec2>>& segs, const std
         if (b.w() >= r.box.w() - tol * 2 && b.h() >= r.box.h() - tol * 2 && b.w() * b.h() > ba) { ba = b.w() * b.h(); bi = i; }
     }
     if (bi >= 0) { r.polys = {closed[bi]}; r.closed = true; return r; }
+    // R26: bridge the open chains across tab gaps into one loop (a routed outline is cut into paths by its breakaway tabs)
+    if (!open.empty()) {
+        const double lim = max_gap >= 0 ? max_gap : std::min(12.0, 0.25 * std::min(r.box.w(), r.box.h()));
+        std::vector<char> u(open.size(), 0);
+        size_t first = 0;
+        auto len = [](const std::vector<Vec2>& c) { double L = 0; for (size_t i = 1; i < c.size(); ++i) L += dist(c[i - 1], c[i]); return L; };
+        for (size_t i = 1; i < open.size(); ++i) if (len(open[i]) > len(open[first])) first = i;
+        std::vector<Vec2> loop = open[first];
+        u[first] = 1;
+        int gaps = 0;
+        double worst = 0;
+        bool ok = true;
+        for (size_t k = 1; k < open.size(); ++k) {
+            int bi2 = -1; bool rev = false; double bd = 1e300;
+            for (size_t i = 0; i < open.size(); ++i) {
+                if (u[i]) continue;
+                const double d0 = dist(loop.back(), open[i].front()), d1 = dist(loop.back(), open[i].back());
+                if (d0 < bd) { bd = d0; bi2 = (int)i; rev = false; }
+                if (d1 < bd) { bd = d1; bi2 = (int)i; rev = true; }
+            }
+            if (bd > lim) {
+                char t[160]; std::snprintf(t, sizeof t, "gap of %.2f mm between picked elements (bridging allows up to %.2f mm): pick the missing edge", bd, lim);
+                r.why = t; ok = false; break;
+            }
+            u[bi2] = 1;
+            std::vector<Vec2> add = open[bi2];
+            if (rev) std::reverse(add.begin(), add.end());
+            if (bd > tol) { ++gaps; worst = std::max(worst, bd); loop.insert(loop.end(), add.begin(), add.end()); }
+            else loop.insert(loop.end(), add.begin() + 1, add.end());
+        }
+        if (ok) {
+            const double close_gap = dist(loop.back(), loop.front());
+            if (close_gap > lim) {
+                char t[160]; std::snprintf(t, sizeof t, "the picked elements do not close: %.2f mm open between the last and first element", close_gap);
+                r.why = t; ok = false;
+            } else {
+                if (close_gap > tol) { ++gaps; worst = std::max(worst, close_gap); }
+                else if (loop.size() > 3) loop.pop_back();
+            }
+        }
+        if (ok && !simple_polygon(loop)) { r.why = "the bridged outline crosses itself (elements of more than one contour picked?)"; ok = false; }
+        if (ok) { r.polys = {loop}; r.closed = true; r.gaps = gaps; r.max_gap = worst; return r; }
+    } else r.why = "no line / arc / region elements picked";
     r.polys = closed;
     for (auto& c : open) r.polys.push_back(c);
     return r;
