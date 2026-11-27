@@ -98,11 +98,20 @@ struct OutlineBuild {
     std::vector<std::vector<Vec2>> polys;   // closed contours first, then open chains (world mm)
     bool closed = false;                    // polys[0] is a closed contour spanning the selection
     BBox box;
+    int gaps = 0;                           // R26: tab gaps bridged to close the contour (routed edge with breakaway tabs)
+    double max_gap = 0;                     // largest bridged gap (mm)
+    std::string why;                        // why no closed contour (open, gap too large, self-intersecting)
 };
 // element centre lines in world coordinates (Draw: a-b, Arc: points on the arc, Region: contour)
 std::vector<Vec2> element_polyline(const gerber::Layer& L, const gerber::Object& o, const Xform& t, bool& closed, int arc_segs = 72);
 bool outline_element(const gerber::Object& o);   // line / arc / region (not flashes)
 // chains open polylines end to end (endpoints within tol, joined at the EXACT first endpoint)
-OutlineBuild build_outline(const std::vector<std::vector<Vec2>>& open, const std::vector<std::vector<Vec2>>& closed, double tol = 0.02);
+// R26: open chains that do not close by themselves (rout paths split at breakaway tabs) are bridged end to nearest end
+// into one loop when every gap is <= max_gap (< 0: min(12 mm, 25 % of the selection's short side)) and the loop
+// does not cross itself; otherwise closed = false and `why` says what is missing.
+OutlineBuild build_outline(const std::vector<std::vector<Vec2>>& open, const std::vector<std::vector<Vec2>>& closed, double tol = 0.02,
+                           double max_gap = -1);
+// true when the closed polygon has no two non-adjacent edges crossing
+bool simple_polygon(const std::vector<Vec2>& poly);
 
 } // namespace pcbp::gmatch
