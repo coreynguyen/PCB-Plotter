@@ -32,5 +32,8 @@ bool cmd_import_board_image(HWND owner, Doc& d);
 // Board image manager: visibility, opacity, lock, side, embed; 1/2/3/4+ point
 // registration against pads / fiducials / frame corners.
 bool dlg_board_images(HWND owner, Doc& d, int select = -1);
+// Decoded pixels of a board image (premultiplied BGRA, downscaled to max_dim on the long side; cached).
+// w / h: stored size. false (+ err) when it cannot be decoded.
+bool board_image_pixels(const BoardImage& bi, int max_dim, int& w, int& h, const std::vector<uint8_t>*& bgra, std::string& err);
 
 } // namespace pcbp::app

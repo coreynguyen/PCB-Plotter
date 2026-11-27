@@ -298,7 +298,7 @@ static Value point_to_json(const ModelPoint& m) {
         ms.set("exporter", s.exporter_id); ms.set("dir", s.target_dir); ms.set("file", s.target_file);
         ms.set("orientation", s.orientation); ms.set("flipped", s.flipped); ms.set("side", (int)s.side);
         ms.set("offset", v2(s.hard_offset)); ms.set("force_angles", s.force_angle_calc);
-        ms.set("single_board", s.single_board); if (s.mirror_angle_when_flipped) ms.set("mirror_angle", true); ms.set("cad_coords", s.use_cad_coords);
+        ms.set("single_board", s.single_board); if (s.mirror_angle_when_flipped) ms.set("mirror_angle", true); ms.set("cad_coords", s.use_cad_coords); if (s.place_at_origin) ms.set("place_origin", true);
         if (s.has_origin) ms.set("origin", v2(s.origin));
         if (s.no_marks) ms.set("no_marks", true);   // R21
         Value opt = Value::object();
@@ -323,7 +323,7 @@ static ModelPoint point_from_json(const Value& o) {
         s.exporter_id = ms["exporter"].str(); s.target_dir = ms["dir"].str(); s.target_file = ms["file"].str();
         s.orientation = ms["orientation"].i(); s.flipped = ms["flipped"].b(); s.side = (Side)ms["side"].i();
         s.hard_offset = v2(ms["offset"]); s.force_angle_calc = ms["force_angles"].b(true);
-        s.single_board = ms["single_board"].b(); s.mirror_angle_when_flipped = ms["mirror_angle"].b(); s.use_cad_coords = ms["cad_coords"].b();
+        s.single_board = ms["single_board"].b(); s.mirror_angle_when_flipped = ms["mirror_angle"].b(); s.use_cad_coords = ms["cad_coords"].b(); s.place_at_origin = ms["place_origin"].b();
         if (ms.has("origin")) { s.has_origin = true; s.origin = v2(ms["origin"]); }
         s.no_marks = ms["no_marks"].b();   // R21
         for (auto& kv : ms["options"].members()) s.options[kv.first] = kv.second.str();
@@ -438,6 +438,7 @@ Value project_to_json(const Project& p, bool include_layers_content) {
             if (!r.category.empty()) e.set("category", r.category);
             if (!r.tags.empty()) { Value t = Value::array(); for (auto& x : r.tags) t.push(x); e.set("tags", t); }
             if (!r.note.empty()) e.set("note", r.note);
+            if (!r.sha256.empty()) e.set("sha256", r.sha256);
             da.push(e);
         }
         dv.set("items", da);
@@ -588,7 +589,7 @@ bool project_from_json(const Value& o, Project& p, std::string& err) {
     for (auto& e : o["documents"]["items"].items()) {
         DocumentRef r;
         r.path = e["path"].str(); r.size = (uint64_t)e["size"].num(); r.crc = (uint32_t)e["crc"].num();
-        r.category = e["category"].str(); r.note = e["note"].str();
+        r.category = e["category"].str(); r.note = e["note"].str(); r.sha256 = e["sha256"].str();
         for (auto& t : e["tags"].items()) r.tags.push_back(t.str());
         if (!r.path.empty()) p.documents.push_back(r);
     }

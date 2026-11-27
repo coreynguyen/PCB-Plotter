@@ -15,6 +15,7 @@
 #include "imgui_internal.h"
 
 #include <cstdio>
+#include <cmath>
 
 namespace pcbp { bool auto_link_smt_pair(Project& p); }   // R18d core/sides.cpp
 namespace pcbp::app {

@@ -64,7 +64,14 @@ public:
     // frame
     bool begin(const View& v, uint32_t bg_argb);   // (re)creates targets, clears colour
     // draw one layer: xf = layer -> world. alpha 0..1.
-    void draw_layer(LayerMesh& m, const Xform& xf, uint32_t argb, float alpha, FillMode mode, bool negative);
+    // screen: "Screen" blend (1 - (1 - dst)(1 - src)): where two screened layers overlap their colours add up, so
+    // complementary colours (magenta + green, red + cyan) turn white on a dark background (ViewMate's compare look)
+    void draw_layer(LayerMesh& m, const Xform& xf, uint32_t argb, float alpha, FillMode mode, bool negative, bool screen = false);
+    // a picture (board scan / photo) mapped onto the world: grid = (n+1) x (n+1) world points of the image's
+    // (u, v) = (i / n, j / n) positions, row-major from the top-left (perspective-correct when n is large enough).
+    // threshold < 0: the picture's own colours; else luminance >= threshold (0..1) becomes `tint`, the rest black
+    // (invert swaps them): the black-and-white board for a stencil compare. srv: ID3D11ShaderResourceView* (BGRA).
+    void draw_image(void* srv, const Vec2* grid, int n, uint32_t tint, float alpha, float threshold, bool invert, bool screen);
     // XOR compare of two layers: differences in col_a / col_b, common area dimmed
     void draw_compare(LayerMesh& a, const Xform& xa, LayerMesh& b, const Xform& xb, uint32_t col_a, uint32_t col_b, uint32_t col_common);
     // highlight all objects of one D-code (polarity ignored)

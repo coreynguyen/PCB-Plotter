@@ -185,7 +185,7 @@ bool import_bom_text(const std::string& text, Project& prj, const BomOptions& op
         setf(p.line_item, m.line_item);
         setf(p.pop_type, m.pop_type);
         setf(p.part_marking, m.part_marking);
-        bool b;
+        bool b = false;
         if (m.polarity >= 0) {
             std::string pv = cell(row, m.polarity);
             if (parse_bool_cell(pv, b)) p.polarized = b;

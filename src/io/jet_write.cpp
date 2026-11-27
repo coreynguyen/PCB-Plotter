@@ -7,6 +7,7 @@
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+#include <cctype>
 
 namespace pcbp::jet {
 
@@ -279,7 +280,77 @@ bool Editor::save(const std::string& path, std::string& err) const {
 uint32_t Editor::append_page() {
     data_.resize(data_.size() + ps_, 0);
     ++stats.pages_appended;
-    return num_pages() - 1;
+    const uint32_t n = num_pages() - 1;
+    claim_global(n);
+    return n;
+}
+
+// Page 1 row 0 is the database's global free-page map (bit set = page free). Jet pre-marks pages past the
+// end of the file as free; a page appended by us must be cleared there, or Jet hands it out again and
+// overwrites it (seen: a new table's data pages reused for LVAL / other tables after FlexLine opened the file).
+bool Editor::global_bit(uint32_t page, bool clear, bool* was_free) {
+    if (num_pages() < 2) return false;
+    uint8_t* q = pg(1);
+    if (q[0] != 0x01) return false;
+    const uint32_t nr = rd16(q + 12);
+    if (nr == 0) return false;
+    const uint32_t st = rd16(q + 14) & 0x1FFF, end = ps_;
+    if (st + 5 > end) return false;
+    uint8_t* r = q + st;
+    auto hit = [&](uint8_t* bits, uint32_t nbytes, uint32_t first) {
+        if (page < first) return false;
+        uint32_t k = page - first;
+        if (k / 8 >= nbytes) return false;
+        const bool f = (bits[k / 8] >> (k % 8)) & 1;
+        if (was_free) *was_free = f;
+        if (clear) bits[k / 8] &= (uint8_t)~(1u << (k % 8));
+        return true;
+    };
+    if (r[0] == 0x00) return hit(r + 5, end - st - 5, rd32(r + 1));
+    if (r[0] == 0x01) {   // reference map: u32 bitmap pages, each covering (ps - 4) * 8 pages
+        const uint32_t per = (ps_ - 4) * 8;
+        for (uint32_t i = 0; st + 1 + 4 * i + 4 <= end; ++i) {
+            uint32_t mp = rd32(r + 1 + 4 * i);
+            if (!mp || mp >= num_pages()) continue;
+            if (page / per != i) continue;
+            return hit(pg(mp) + 4, ps_ - 4, i * per);
+        }
+    }
+    return false;
+}
+void Editor::claim_global(uint32_t page) { global_bit(page, true, nullptr); }
+size_t Editor::claim_owned_pages() {
+    size_t fixed = 0;
+    std::string err;
+    for (auto& kv : cat_) {
+        TDef td;
+        if (!load_tdef(kv.second, td, err)) continue;
+        std::vector<uint32_t> pgs;
+        map_pages(td.used_ptr, pgs);
+        for (auto& ix : td.ridx) index_pages(ix.first_dp, pgs);
+        for (uint32_t p : td.chain) pgs.push_back(p);
+        for (uint32_t p : pgs) if (page_free_global(p)) { claim_global(p); ++fixed; }
+    }
+    return fixed;
+}
+size_t Editor::pages_wrongly_free() const {
+    size_t bad = 0;
+    std::string err;
+    for (auto& kv : cat_) {
+        TDef td;
+        if (!load_tdef(kv.second, td, err)) continue;
+        std::vector<uint32_t> pgs;
+        map_pages(td.used_ptr, pgs);
+        for (auto& ix : td.ridx) index_pages(ix.first_dp, pgs);
+        for (uint32_t p : td.chain) pgs.push_back(p);
+        for (uint32_t p : pgs) bad += page_free_global(p);
+    }
+    return bad;
+}
+bool Editor::page_free_global(uint32_t page) const {
+    bool f = false;
+    const_cast<Editor*>(this)->global_bit(page, false, &f);
+    return f;
 }
 
 bool Editor::row_at(uint32_t p, uint32_t row, const uint8_t*& d, uint32_t& n, uint16_t& flags) const {
@@ -827,7 +898,8 @@ bool Editor::store(ETable& t, std::string& err) {
     }
 
     // ---- 4. autonumber + encode
-    uint32_t autonum = rd32(td.buf.data() + 20);
+    uint32_t autonum = t.reset_autonumber ? 0 : rd32(td.buf.data() + 20);
+    t.reset_autonumber = false;
     for (size_t k = 0; k < td.cols.size(); ++k) {
         if (!td.cols[k].autonum() || td.cols[k].type != ColType::Long) continue;
         for (auto& row : t.rows)

@@ -9,6 +9,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 
 namespace pcbp::sheet {
 

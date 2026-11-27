@@ -127,8 +127,20 @@ static void test_project_and_writer() {
         CHECK(project_from_json(js, q, err));
         CHECK(q.packages["SOIC-8"].mach.nozzle == 506 && q.packages["SOIC-8"].mach_assigned && q.packages["C0603"].mach.empty());
     }
+    // a reference with no part number is placed with no component: its package name never becomes a component
+    { Component b; b.ref = "R99"; b.pos = {30, 10}; b.cad_pos = b.pos; b.package = "C0603"; b.assigned_point = 0; p.add_component(b); }
     MachineJob j; std::string err;
     CHECK(build_machine_job(p, 0, j, err));
+    for (auto& x : j.parts) CHECK(x.part != "C0603" && !x.part.empty());
+    {
+        bool blank = false;
+        for (auto& pl : j.placements) if (pl.ref == "R99") blank = pl.part.empty();
+        CHECK(blank);
+        std::vector<uint8_t> b2;
+        juki::HlcParsed h2;
+        CHECK(juki::write_hlc_variant(j, juki::HlcVariant::H8H, b2, err) && juki::parse_hlc(b2, h2, err));
+        for (auto& n : h2.components) CHECK(n != "C0603");
+    }
     const JobPart* jc = nullptr; const JobPart* ju = nullptr; const JobPart* jq = nullptr;
     for (auto& x : j.parts) { if (x.part == "PN-C") jc = &x; if (x.part == "PN-U") ju = &x; if (x.part == "PN-Q") jq = &x; }
     CHECK(jc && ju && jq);

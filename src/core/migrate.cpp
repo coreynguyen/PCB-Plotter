@@ -30,6 +30,7 @@
 #endif
 #include <windows.h>
 #include <shellapi.h>
+#include <cctype>
 #endif
 
 namespace pcbp::migrate {

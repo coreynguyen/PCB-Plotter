@@ -74,6 +74,24 @@ BBox Package::extent() const {
     return b;
 }
 
+Vec2 pkg_place_offset(const Package& p) {
+    // The lands first: that is where the leads have to come down, and they are exact CAD data. A body outline is
+    // often silkscreen with a pin-1 notch or a tab drawn to one side (262648-01: TSSOP24 body 0.127 mm off pads that
+    // are centred; a coax jack 1.375 mm off). The body only when the package has no pads.
+    BBox b;
+    for (auto& d : p.pads) {
+        const double hw = d.w * 0.5, hh = d.h * 0.5;
+        Vec2 c[4] = {{-hw, -hh}, {hw, -hh}, {hw, hh}, {-hw, hh}};
+        for (auto& q : c) b.add(rotate(q, d.rot) + d.pos);
+    }
+    if (b.empty()) b = pkg_body_box(p);
+    if (b.empty()) return {0, 0};
+    Vec2 c{(b.x0 + b.x1) * 0.5, (b.y0 + b.y1) * 0.5};
+    if (std::fabs(c.x) < 0.02) c.x = 0;
+    if (std::fabs(c.y) < 0.02) c.y = 0;
+    return c;
+}
+
 BBox pkg_body_box(const Package& p, std::string* src) {
     const bool real = !p.body.empty() && p.body_source != "pads" && p.body_source != "cad_extent";
     if (real) {

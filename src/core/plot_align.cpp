@@ -5,6 +5,7 @@
 #include <cfloat>
 #include <cmath>
 #include <string>
+#include <cctype>
 
 namespace pcbp {
 

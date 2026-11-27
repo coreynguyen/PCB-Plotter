@@ -23,6 +23,7 @@
 #include <future>
 #include <map>
 #include <set>
+#include <cctype>
 
 namespace pcbp::gui {
 using namespace pcbp::app;
@@ -1232,13 +1233,20 @@ void PlotterView::draw_toolbar() {
     static const int kTools[] = {ID_TOOL_SELECT, ID_TOOL_PIN1, ID_TOOL_ORIGIN, ID_TOOL_FRAME_CIRCUIT};
     static const int kRot[] = {ID_TOOL_ROT90, ID_TOOL_ROT180, ID_TOOL_ROT270};
     static const int kShow[] = {ID_TOOL_SHOW_NOREF, ID_TOOL_VERIFY_ANGLES};
-    auto pin1 = [this]() {   // R17c: polarity markers = icon toggle (was the "Polarity: on/off" text button)
+    auto pin1 = [this]() {   // R17c: polarity markers = icon toggle; R26: click cycles Off -> Markers -> Markers + all pin 1
         const bool on = g_orient_markers != 0;
-        if (icon_button("##polarity", ui::Icon::Polarity,
-                        on ? "Polarity markers: ON  (click to hide)\nEach package's polarity marker (dot / arrow, placed in the package editor) is drawn,\n"
-                             "rotated and mirrored with the placement, to compare with the board silkscreen.\nParts without a polarity marker show nothing."
-                           : "Polarity markers: OFF  (click to show)\nShow each package's polarity marker (dot / arrow) rotated and mirrored with the placement.",
-                        on, true, S(30))) { g_orient_markers = on ? 0 : 1; canvas.invalidate(); }
+        const char* tip = g_orient_markers == 0
+            ? "Polarity: OFF  (click: polarity markers)\nShow each package's polarity marker (dot / arrow) rotated and mirrored with the placement."
+            : g_orient_markers == 1
+            ? "Polarity: MARKERS  (click: markers + all pin-1 pads)\nEach package's polarity marker (dot / arrow, placed in the package editor) is drawn,\n"
+              "rotated and mirrored with the placement, to compare with the board silkscreen.\nParts without a polarity marker show nothing."
+            : "Polarity: MARKERS + ALL PIN 1  (click: off)\nEvery placement's pin-1 pad is filled and ringed (magenta), whether or not its package\n"
+              "has a polarity marker: the placement's pin-1 override, else the pad numbered 1.";
+        if (icon_button("##polarity", ui::Icon::Polarity, tip, on, true, S(30))) { g_orient_markers = (g_orient_markers + 1) % 3; canvas.invalidate(); }
+        if (g_orient_markers == 2) {   // small "1" badge on the button: the all-pin-1 mode is visible at a glance
+            const ImVec2 mx = ImGui::GetItemRectMax();
+            ImGui::GetWindowDrawList()->AddText(ImVec2(mx.x - S(9), mx.y - S(15)), IM_COL32(224, 33, 138, 255), "1");
+        }
         ImGui::SameLine(0, S(2));
     };
     auto side_w = []() {

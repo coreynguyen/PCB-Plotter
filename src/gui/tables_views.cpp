@@ -14,6 +14,7 @@
 #include "gapp.h"
 #include "../core/package_edit.h"
 #include "../core/fileio.h"
+#include "../core/footprint_canon.h"
 #include "../core/placement_check.h"
 namespace pcbp { std::string project_program_name(const Project& p); }   // v17 (core/sides.h; its side_name clashes here)
 #include "../io/bom_import2.h"
@@ -1092,8 +1093,9 @@ struct PlacementsView : View {
         if (ImGui::Checkbox("Include DNP", &copt.overlap_include_dnp)) dirty_check = true;
         ImGui::Dummy(ImVec2(0, S(4)));
         // auto fixes
-        int ndup = 0, nmisspk = 0, nrot = 0, ndnpa = 0;
+        int ndup = 0, nmisspk = 0, nrot = 0, ndnpa = 0, noffpk = 0;
         for (auto& is : issues) {
+            if (is.code == CheckCode::OffAxisPackage) noffpk++;
             if (is.code == CheckCode::DuplicateRef) ndup++;
             if (is.code == CheckCode::MissingPackage) nmisspk++;
             if (is.code == CheckCode::OffAxisRotation) nrot++;
@@ -1121,6 +1123,17 @@ struct PlacementsView : View {
             doc->changed(ui::CH_GEOMETRY);
             toast(std::to_string(n) + " rotation(s) snapped to 90\xC2\xB0", ToastKind::Success, 5.f, "Undo", [] { post_command(app::ID_EDIT_UNDO); });
         }
+        // R26: off-axis packages (IPC-D-356 / digitised imports): rotation back onto the placements, pads unchanged on the board
+        if (noffpk && button("Normalise off-axis packages", ui::Icon::Rot90, false, ImVec2(-1, 0))) {
+            doc->checkpoint("Normalise packages");
+            const NormaliseReport nr = normalise_imported_packages(p);
+            doc->changed(ui::CH_GEOMETRY);
+            toast(std::to_string(nr.packages) + " package(s) made axis-aligned, " + std::to_string(nr.placements) + " placement(s) given their angle, " +
+                  std::to_string(nr.merged) + " duplicate(s) merged", ToastKind::Success, 6.f, "Undo", [] { post_command(app::ID_EDIT_UNDO); });
+        }
+        if (noffpk) tooltip("Each off-axis package is turned axis-aligned and its placements take the angle instead (pads stay where they are on\n"
+                            "the board). IPC-D-356 packages are also re-centred, given the canonical orientation (pin 1 left / upper-left) and\n"
+                            "identical ones merged; CAD packages only lose the off-axis part.");
         if (ndnpa && button("Unassign DNP parts", ui::Icon::Unassign, false, ImVec2(-1, 0))) {
             doc->checkpoint("Unassign DNP");
             int n = unassign_dnp(p);

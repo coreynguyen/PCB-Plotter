@@ -60,6 +60,7 @@ struct ETable {
     uint32_t tdef_pg = 0;
     std::vector<ECol> cols;         // sorted by col_num
     std::vector<ERow> rows;
+    bool reset_autonumber = false;  // store(): restart the counter at the highest id present (0 when empty)
     int col(const std::string& name) const;   // case-insensitive, -1 if missing
 
     // typed access (by column position)
@@ -98,6 +99,13 @@ public:
     bool roundtrip_check(const std::string& name, size_t& rows, size_t& mismatches, std::string& err) const;
     // rebuild index entries in memory and compare with the stored index (count mismatches)
     bool index_check(const std::string& name, size_t& entries, size_t& mismatches, std::string& err) const;
+    // true when the database's global free-page map (page 1) lists the page as free
+    bool page_free_global(uint32_t page) const;
+    // pages owned by some table (data, usage maps' data pages, index pages) that page 1 lists as free (must be 0)
+    size_t pages_wrongly_free() const;
+    // clear page 1's free bit of every page a table owns (repairs files written before append_page claimed
+    // its pages); returns the number fixed. save() afterwards.
+    size_t claim_owned_pages();
 
 private:
     struct RIdx {
@@ -121,6 +129,8 @@ private:
     const uint8_t* pg(uint32_t n) const { return data_.data() + (size_t)n * ps_; }
     uint32_t num_pages() const { return (uint32_t)(data_.size() / ps_); }
     uint32_t append_page();
+    bool global_bit(uint32_t page, bool clear, bool* was_free);
+    void claim_global(uint32_t page);
     bool map_pages(uint32_t ptr, std::vector<uint32_t>& out) const;
     bool row_at(uint32_t pg, uint32_t row, const uint8_t*& p, uint32_t& n, uint16_t& flags) const;
     bool scan(const TDef& td, std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& rows, std::string& err) const;

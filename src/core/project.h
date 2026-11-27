@@ -47,6 +47,11 @@ struct Package;
 // that is only a pad-derived rectangle ("pads") or the CAD package extent box ("cad_extent", which includes the
 // pins) is not a body: the pad / lead extent is returned and *src = "pads" (approximate, includes legs).
 BBox pkg_body_box(const Package& p, std::string* src = nullptr);
+// R25 (262648-01): where the machine has to put the part, in package coordinates. A CAD footprint's origin is not
+// always its centre (chip footprints drawn from pad 1: origin on the pad, body from -0.38 to +1.40 mm), and a centroid
+// file made from such footprints carries the origin. The placement point is the centre of the pad (land) extent; the
+// centre of pkg_body_box() when the package has no pads; under 0.02 mm it is taken as centred (0, 0).
+Vec2 pkg_place_offset(const Package& p);
 
 // ---------------------------------------------------------------------------
 // Packages (shape library)
@@ -303,6 +308,9 @@ struct MachineSetup {
     bool force_angle_calc = false;
     bool single_board = false;          // treat all images as a single board
     bool use_cad_coords = false;
+    // R25: false (default) = placements are exported at the package's placement point (pkg_place_offset(): the centre
+    // of its lands); true = at the footprint origin as imported (what every export before R25 wrote).
+    bool place_at_origin = false;
     // Bottom-side angle rule when flipped. false (default) = keep the displayed
     // angle (CircuitCAM-validated JUKI behaviour); true = mirror (angle -> -angle).
     bool mirror_angle_when_flipped = false;
@@ -407,6 +415,7 @@ struct DocumentRef {
     std::string category;               // top folder / sniffed category
     std::vector<std::string> tags;
     std::string note;
+    std::string sha256;                 // R25 content hash (hex), "" until computed; kept while size + CRC match
 };
 
 enum class OutlineSource : uint8_t { Inferred = 0, Confirmed = 1, Imported = 2 };

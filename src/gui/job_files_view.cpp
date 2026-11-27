@@ -46,6 +46,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <cctype>
 
 namespace pcbp::gui {
 
@@ -119,6 +120,9 @@ ImU32 cat_color(Cat c) {
         IM_COL32(34, 160, 90, 255),    // Original Circuit: green
         IM_COL32(20, 140, 200, 255),   // Panel Gerbers: blue
         IM_COL32(150, 150, 165, 255),  // Stencil: steel
+        IM_COL32(0, 150, 150, 255),    // CAD: teal
+        IM_COL32(190, 90, 40, 255),    // BOM: rust
+        IM_COL32(90, 110, 130, 255),   // Machine Programs: slate
         IM_COL32(140, 90, 210, 255),   // Schematic: violet
         IM_COL32(60, 100, 220, 255),   // Drawing: indigo
         IM_COL32(220, 70, 140, 255),   // Image: pink
@@ -134,6 +138,9 @@ ui::Icon cat_icon(Cat c) {
     case Cat::Original: return ui::Icon::Board;
     case Cat::Panel: return ui::Icon::Panelize;
     case Cat::Stencil: return ui::Icon::Layers;
+    case Cat::Cad: return ui::Icon::ImportCad;
+    case Cat::Bom: return ui::Icon::FileBom;
+    case Cat::Programs: return ui::Icon::MachineProg;
     case Cat::Schematic: return ui::Icon::FileCad;
     case Cat::Drawing: return ui::Icon::FilePdf;
     case Cat::Image: return ui::Icon::FileImage;
@@ -144,7 +151,10 @@ ui::Icon cat_icon(Cat c) {
 }
 const char* cat_hint(Cat c) {
     switch (c) {
-    case Cat::Original: return "Single-circuit Gerbers and drill, the customer's original Gerber zip, CAD and placement data";
+    case Cat::Original: return "Single-circuit Gerbers and drill, the customer's original Gerber zip";
+    case Cat::Cad: return "ODB++ (.tgz), CAD and placement data, CircuitCAM projects";
+    case Cat::Bom: return "Bills of materials (M1 dumps, customer BOMs)";
+    case Cat::Programs: return "Machine programs kept for reference (the live ones stay next to the archive)";
     case Cat::Panel: return "Panelized Gerbers (often with less annotation than the original circuit)";
     case Cat::Stencil: return "Stencil (paste) Gerbers and stencil orders";
     case Cat::Schematic: return "Electrical schematics";
@@ -152,7 +162,7 @@ const char* cat_hint(Cat c) {
     case Cat::Image: return "Reference photos and pictures";
     case Cat::Email: return "Saved e-mails and correspondence";
     case Cat::Notes: return "Text and Markdown notes, instructions";
-    default: return "Anything else (BOMs, datasheets: tagged)";
+    default: return "Anything else (datasheets: tagged)";
     }
 }
 // small pill: colour dot + label; returns its width
@@ -274,6 +284,12 @@ struct State {
     std::unique_ptr<jz::DropSheet> sheet;
     bool open_sheet = false;
     int sheet_all = 0;
+    // R25 pack the project folder: what stays next to the archive / is archived already (the sheet holds the rest);
+    // after a verified pack, the originals that may move to _packed/
+    std::unique_ptr<jz::PackPlan> pack;
+    std::vector<std::string> pack_done;
+    bool open_cleanup = false;
+    std::string hash_note;                   // last "Verify archive" result
     // R23 job folder (sidecar files on disk next to the project)
     bool jf_mode = false;                    // sidebar "Job folder" selected
     std::vector<jz::SideFile> jf;
@@ -316,7 +332,8 @@ void insert_node(Node& root, const std::string& name, int item) {
 }
 Node build_tree(const jz::Zip& z) {
     Node r;
-    for (size_t i = 0; i < z.items().size(); ++i) insert_node(r, z.items()[i].name, (int)i);
+    for (size_t i = 0; i < z.items().size(); ++i)
+        if (!jz::is_version_path(z.items()[i].name)) insert_node(r, z.items()[i].name, (int)i);   // R25: versions shown per file
     return r;
 }
 
@@ -360,25 +377,29 @@ bool ensure_nested(State& s, const std::string& outer) {
 
 // apply an edit to the archive, then refresh the listing and the project index (+ tags for new entries)
 using TagMap = std::map<std::string, std::vector<std::string>>;
-bool apply_now(const app::DocPtr& d, State& s, const jz::Edit& e, const std::string& what, const TagMap& tags = {});
+using HashMap = std::map<std::string, std::string>;
+bool apply_now(const app::DocPtr& d, State& s, const jz::Edit& e, const std::string& what, const TagMap& tags = {}, const HashMap& hashes = {});
 // Inside a frame the tree is being iterated: the rewrite runs after the frame.
 bool apply(const app::DocPtr& d, State& s, const jz::Edit& e, const std::string& what, const TagMap& tags = {}) {
     if (in_frame()) { State* sp = &s; defer([d, sp, e, what, tags]() { apply_now(d, *sp, e, what, tags); }); return true; }
     return apply_now(d, s, e, what, tags);
 }
-bool apply_now(const app::DocPtr& d, State& s, const jz::Edit& e, const std::string& what, const TagMap& tags) {
+bool apply_now(const app::DocPtr& d, State& s, const jz::Edit& e, const std::string& what, const TagMap& tags, const HashMap& hashes) {
     if (s.zip_path.empty()) { toast("Save the project first: the job archive lives next to the .pcbp file", ToastKind::Warning, 6.f); return false; }
     std::string err;
     bool ok = false;
-    run_with_progress_wait("Updating job archive", [&](Progress& p) { p.text(disk_name(s.zip_path).c_str()); ok = jz::rewrite(s.zip_path, e, err); },
+    jz::Edit ev = e;
+    if (s.ok) jz::carry_versions(s.zip, ev);   // R25: versions follow their file (delete / rename / move)
+    run_with_progress_wait("Updating job archive", [&](Progress& p) { p.text(disk_name(s.zip_path).c_str()); ok = jz::rewrite(s.zip_path, ev, err); },
                            ProgressOpts{false, false, 0.3f});
     if (!ok) { toast("Job archive not changed: " + err, ToastKind::Error, 8.f); return false; }
     reload(s, *d, true);
     if (s.ok) {
-        jz::sync_index(d->prj.documents, s.zip, e.rename);
+        jz::sync_index(d->prj.documents, s.zip, ev.rename);
         for (auto& [path, tl] : tags)
             if (DocumentRef* r = jz::index_find(d->prj.documents, path))
                 for (auto& t : tl) if (std::find(r->tags.begin(), r->tags.end(), t) == r->tags.end()) r->tags.push_back(t);
+        for (auto& [path, h] : hashes) if (DocumentRef* r = jz::index_find(d->prj.documents, path)) r->sha256 = h;
     }
     s.edit_key.clear();
     d->prj.dirty = true;
@@ -426,11 +447,70 @@ void offer_paths(const app::DocPtr& d, const std::vector<std::string>& paths, in
 void commit_sheet(const app::DocPtr& d, State& s) {
     if (!s.sheet) return;
     jz::Edit e; TagMap tags; std::map<int, int> pc;
-    const bool any = s.sheet->build(s.ok ? &s.zip : nullptr, e, &tags, &pc);
+    std::vector<std::string> skipped;
+    const bool any = s.sheet->build(s.ok ? &s.zip : nullptr, e, &tags, &pc, &skipped);
     s.sheet.reset();
-    if (!any) return;
+    auto pack = std::move(s.pack);
+    if (!any) {
+        if (!skipped.empty()) toast(std::to_string(skipped.size()) + " file(s) already in the archive with the same content: nothing added", ToastKind::Info, 5.f);
+        return;
+    }
+    HashMap hashes;   // SHA-256 of what goes in (R25)
+    run_with_progress_wait("Hashing the files", [&](Progress& p) { p.text("SHA-256"); hashes = jz::hash_added(e); }, ProgressOpts{false, false, 0.3f});
     const bool created = !s.exists;
-    apply(d, s, e, summary_of(pc) + (created ? "; created " + disk_name(s.zip_path) : std::string()), tags);
+    std::string what = summary_of(pc) + (created ? "; created " + disk_name(s.zip_path) : std::string());
+    if (!e.rename.empty()) what += "; " + std::to_string(e.rename.size()) + " older version(s) kept";
+    if (!skipped.empty()) what += "; " + std::to_string(skipped.size()) + " unchanged skipped";
+    if (!apply_now(d, s, e, what, tags, hashes) || !pack) return;
+    // a pack: every packed file is checked against the archive before the originals may move
+    std::string err;
+    if (!s.ok || !jz::verify_packed(s.zip, e, err)) {
+        toast("Packed, but the check against the originals failed (" + err + "): the originals stay where they are", ToastKind::Error, 10.f);
+        return;
+    }
+    s.pack_done.clear();
+    for (auto& a : e.add) if (!a.disk.empty()) s.pack_done.push_back(a.disk);
+    s.open_cleanup = !s.pack_done.empty();
+    request_redraw(3);
+}
+std::vector<std::string> jf_projects(const app::Doc& d, const State& s);
+// R25: scan the project folder and offer everything that belongs in the archive (machine files and the project's
+// sidecars stay next to it)
+void pack_folder(const app::DocPtr& d) {
+    State& s = state_of(d.get());
+    if (!can_add(s, *d)) return;
+    const std::string dir = u8(upath(s.zip_path).parent_path());
+    auto plan = std::make_unique<jz::PackPlan>();
+    run_with_progress_wait("Scanning the project folder", [&](Progress& p) {
+        p.text(dir.c_str());
+        *plan = jz::plan_pack(dir, jf_projects(*d, s), disk_name(s.zip_path), s.ok ? &s.zip : nullptr);
+    }, ProgressOpts{false, false, 0.3f});
+    if (plan->sheet.rows.empty()) {
+        toast("Nothing new to pack: " + std::to_string(plan->already.size()) + " file(s) already in the archive, " + std::to_string(plan->stays.size()) +
+                  " stay next to it", ToastKind::Info, 6.f);
+        return;
+    }
+    s.sheet = std::make_unique<jz::DropSheet>(std::move(plan->sheet));
+    s.pack = std::move(plan);
+    s.sheet_all = (int)s.sheet->rows[0].cat;
+    s.open_sheet = true;
+    request_redraw(3);
+}
+// R25: hash every entry from the archive and compare with the stored hashes
+void verify_archive(const app::DocPtr& d, State& s) {
+    if (!s.ok) return;
+    std::vector<std::string> bad;
+    int added = 0;
+    run_with_progress_wait("Verifying the job archive", [&](Progress& p) { p.text("SHA-256 of every file"); added = jz::fill_hashes(d->prj.documents, s.zip, {}, &bad); },
+                           ProgressOpts{false, false, 0.3f});
+    if (added) { d->prj.dirty = true; d->changed(ui::CH_INFO); }
+    if (bad.empty()) {
+        s.hash_note = "All " + std::to_string(d->prj.documents.size()) + " files verified";
+        toast(s.hash_note + (added ? " (" + std::to_string(added) + " hashed for the first time)" : std::string()), ToastKind::Success, 5.f);
+    } else {
+        s.hash_note = std::to_string(bad.size()) + " file(s) unreadable or changed since hashed: " + bad[0] + (bad.size() > 1 ? ", ..." : "");
+        toast(s.hash_note, ToastKind::Error, 10.f);
+    }
 }
 // An open (non-nested) folder: dropped items go straight into it (the user chose the place).
 void add_into_folder(const app::DocPtr& d, const std::vector<std::string>& paths, const std::string& folder) {
@@ -1465,7 +1545,9 @@ bool FilesView::draw_rename_field(State& s, const Entry& e, ImVec2 pos, float w)
 void FilesView::ask_delete(State& s, const std::string& name) {
     app::DocPtr d = doc; State* sp = &s;
     defer([d, sp, name]() {
+        const size_t nv = sp->ok && name.back() != '/' ? jz::versions_of(sp->zip, name).size() : 0;
         if (ui::msg_box(main_hwnd(), W("Delete \"" + base_of(name) + "\"" + (name.back() == '/' ? " and everything in it" : "") +
+                                      (nv ? " and its " + std::to_string(nv) + " older version(s)" : std::string()) +
                                       " from the job archive?\n\nThe previous archive is kept as " + disk_name(sp->zip_path) + ".bak."),
                         L"Delete", MB_YESNO | MB_ICONWARNING) != IDYES) return;
         jz::Edit e; e.remove.insert(name);
@@ -1574,6 +1656,8 @@ void FilesView::item_menu(State& s, const Entry& e) {
 void FilesView::empty_menu(State& s) {
     const bool ro = key_nested(s.cwd);
     if (menu_item_icon("Add files\xE2\x80\xA6", ui::Icon::Plus, nullptr, false, !s.zip_path.empty() && !ro)) pick_files(s);
+    if (menu_item_icon("Pack project folder\xE2\x80\xA6", ui::Icon::FileZip, nullptr, false, !s.zip_path.empty())) { app::DocPtr d = doc; defer([d]() { pack_folder(d); }); }
+    if (menu_item_icon("Verify archive (SHA-256)", ui::Icon::Check, nullptr, false, s.ok)) { app::DocPtr d = doc; State* sp = &s; defer([d, sp]() { verify_archive(d, *sp); }); }
     if (!s.cwd.empty() && menu_item_icon("Extract this folder\xE2\x80\xA6", ui::Icon::Export)) extract_to(s, s.cwd);
     if (menu_item_icon("Refresh", ui::Icon::Recent, "F5")) reload(s, *doc, true);
     ImGui::Separator();
@@ -1581,6 +1665,28 @@ void FilesView::empty_menu(State& s) {
 }
 
 void FilesView::dialogs(State& s) {
+    // R25: after a verified pack, offer to move the originals out of the way (never deleted)
+    if (s.open_cleanup) { ImGui::OpenPopup("Packed###jfpacked"); s.open_cleanup = false; }
+    ImGui::SetNextWindowSize(ImVec2(S(520), 0), ImGuiCond_Appearing);
+    if (ImGui::BeginPopupModal("Packed###jfpacked", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("%d file(s) packed and checked against the archive.", (int)s.pack_done.size());
+        ImGui::PushTextWrapPos(S(500));
+        ImGui::TextDisabled("Move the originals into a \"%s\" folder next to the archive? Nothing is deleted; machine programs, the traveller "
+                            "and the AOI picture are not touched.", jz::kPackedFolder);
+        ImGui::PopTextWrapPos();
+        ImGui::Separator();
+        if (button("Move to _packed", ui::Icon::Move, true)) {
+            std::vector<std::string> failed;
+            const int n = jz::move_packed(u8(upath(s.zip_path).parent_path()), s.pack_done, failed);
+            if (failed.empty()) toast("Moved " + std::to_string(n) + " original(s) to " + jz::kPackedFolder, ToastKind::Success, 4.f);
+            else toast("Moved " + std::to_string(n) + "; " + std::to_string(failed.size()) + " could not be moved (in use?): " + failed[0], ToastKind::Warning, 8.f);
+            s.pack_done.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (button("Keep them where they are") || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { s.pack_done.clear(); ImGui::CloseCurrentPopup(); }
+        ImGui::EndPopup();
+    }
     if (s.open_props) { ImGui::OpenPopup("Properties###jfprops"); s.open_props = false; }
     if (s.open_tags && !s.tags_multi.empty()) { ImGui::OpenPopup("Add tags###jftagsm"); s.open_tags = false; s.dlg_tags[0] = 0; }
     ImGui::SetNextWindowSize(ImVec2(S(460), 0), ImGuiCond_Appearing);
@@ -1698,7 +1804,8 @@ void FilesView::draw_sheet(State& s) {
     const int nfiles = sh.included_files();
     int gerber_rows = 0; for (auto& r : sh.rows) gerber_rows += r.include && r.p.gerber_set;
     ImGui::PushFont(g_font_bold);
-    if (sh.target >= 0) ImGui::Text("Add %d %s to %s", nfiles, nfiles == 1 ? "file" : "files", jz::category_label((Cat)sh.target));
+    if (s.pack) ImGui::Text("Pack %d %s from the project folder into %s", nfiles, nfiles == 1 ? "file" : "files", disk_name(s.zip_path).c_str());
+    else if (sh.target >= 0) ImGui::Text("Add %d %s to %s", nfiles, nfiles == 1 ? "file" : "files", jz::category_label((Cat)sh.target));
     else ImGui::Text("Add %d %s to the job archive", nfiles, nfiles == 1 ? "file" : "files");
     ImGui::PopFont();
     ImGui::PushStyleColor(ImGuiCol_Text, t.text_dim);
@@ -1769,14 +1876,31 @@ void FilesView::draw_sheet(State& s) {
     Cat all = (Cat)s.sheet_all;
     if (cat_combo("##all", all, S(222))) { s.sheet_all = (int)all; sh.set_all(all); }
     ImGui::SameLine();
-    ImGui::TextDisabled("  BOMs and datasheets go to Other with a tag.");
+    ImGui::TextDisabled("  Datasheets go to Other with a tag. Same name, new content: the old file is kept as a version.");
+    if (s.pack) {   // R25: what the pack leaves alone
+        auto list = [&](const char* title, const std::vector<jz::PackSkip>& v) {
+            if (v.empty()) return;
+            const std::string h = std::string(title) + " (" + std::to_string(v.size()) + ")###" + title;
+            if (ImGui::CollapsingHeader(h.c_str())) {
+                ImGui::BeginChild(title, ImVec2(0, std::min(S(160), (float)v.size() * S(22) + S(8))), ImGuiChildFlags_Border);
+                for (auto& x : v) {
+                    ImGui::TextUnformatted(x.name.c_str());
+                    ImGui::SameLine(S(320));
+                    ImGui::TextDisabled("%s", x.why.c_str());
+                }
+                ImGui::EndChild();
+            }
+        };
+        list("Stays next to the archive", s.pack->stays);
+        list("Already in the archive", s.pack->already);
+    }
     ImGui::Separator();
-    const std::string addl = "Add " + std::to_string(nfiles) + (nfiles == 1 ? " file" : " files");
+    const std::string addl = (s.pack ? "Pack " : "Add ") + std::to_string(nfiles) + (nfiles == 1 ? " file" : " files");
     const bool ok = button(addl.c_str(), ui::Icon::Plus, true, ImVec2(0, 0), nfiles > 0) || (nfiles > 0 && ImGui::IsKeyPressed(ImGuiKey_Enter, false) && !ImGui::IsAnyItemActive());
     ImGui::SameLine();
     const bool cancel = button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
     if (ok) { State* sp = &s; app::DocPtr d = doc; ImGui::CloseCurrentPopup(); defer([d, sp]() { commit_sheet(d, *sp); }); }
-    else if (cancel) { s.sheet.reset(); ImGui::CloseCurrentPopup(); }
+    else if (cancel) { s.sheet.reset(); s.pack.reset(); ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
 }
 
@@ -2197,6 +2321,38 @@ void FilesView::draw_details(State& s, float w, float h) {
             }
         }
     }
+    // R25: content hash and the older versions of this file
+    if (is_file && !nested && idx >= 0) {
+        DocumentRef* r = jz::index_find(doc->prj.documents, inner);
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextDisabled("SHA-256");
+        ImGui::SameLine(S(80));
+        if (r && !r->sha256.empty()) {
+            ImGui::TextDisabled("%.16s\xE2\x80\xA6", r->sha256.c_str());
+            if (ImGui::IsItemHovered()) tooltip((r->sha256 + "\nClick to copy").c_str());
+            if (ImGui::IsItemClicked()) ImGui::SetClipboardText(r->sha256.c_str());
+        } else if (r && ImGui::SmallButton("Compute")) {
+            r->sha256 = jz::entry_sha256(*z, z->items()[(size_t)idx]);
+            doc->prj.dirty = true; doc->changed(ui::CH_INFO);
+        }
+        const auto vs = jz::versions_of(*z, inner);
+        if (!vs.empty()) {
+            ImGui::TextDisabled("Older versions (%d)", (int)vs.size());
+            for (size_t k = 0; k < vs.size(); ++k) {
+                const jz::Item* v = vs[k];
+                ImGui::PushID((int)k);
+                ImGui::BulletText("%s  %s", jz::dos_datetime_text(v->mdate, v->mtime).c_str(), fmt_size(v->usize).c_str());
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Extract")) extract_to(s, v->name);
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Restore")) {
+                    jz::Edit e;
+                    if (jz::plan_restore(*z, v->name, e)) apply(doc, s, e, "Restored the version of " + jz::dos_datetime_text(v->mdate, v->mtime) + "; the current file is kept as a version");
+                }
+                ImGui::PopID();
+            }
+        }
+    }
     ImGui::Spacing();
     if (is_file) {
         const bool zipf = !nested && jz::is_zip_name(inner);
@@ -2331,9 +2487,14 @@ void FilesView::draw(ImVec2 size) {
     ImGui::SameLine();
     if (s.ok) ImGui::TextDisabled("%s  \xC2\xB7  %s, %d files%s", disk_name(s.zip_path).c_str(), fmt_size(s.fsize).c_str(), (int)doc->prj.documents.size(), s.zip.zip64() ? ", Zip64" : "");
     else ImGui::TextDisabled("%s", s.zip_path.empty() ? "no archive (project not saved)" : disk_name(s.zip_path).c_str());
-    const float bw = ImGui::CalcTextSize("Add files...Show in folder").x + S(110);
+    const float bw = ImGui::CalcTextSize("Add files...Pack folder...Show in folder").x + S(160);
     ImGui::SameLine(std::max(ImGui::GetCursorPosX() + S(12), size.x - bw));
     if (button("Add files\xE2\x80\xA6", ui::Icon::Plus, true, ImVec2(0, 0), !s.zip_path.empty() && !key_nested(s.cwd))) pick_files(s);
+    ImGui::SameLine();
+    if (button("Pack folder\xE2\x80\xA6", ui::Icon::FileZip, false, ImVec2(0, 0), !s.zip_path.empty())) { app::DocPtr d = doc; defer([d]() { pack_folder(d); }); }
+    if (ImGui::IsItemHovered())
+        tooltip("Put everything in the project's folder into the job archive, sorted into categories.\n"
+                "Machine programs (.h8h / .h81.., .iss / .i01..), the M1 traveller, the AOI picture and the project's machine side files stay next to it.");
     ImGui::SameLine();
     if (button("Show in folder", ui::Icon::Open, false, ImVec2(0, 0), s.exists)) {
         std::wstring a = L"/select,\"" + W(s.zip_path) + L"\"";

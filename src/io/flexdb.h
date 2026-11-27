@@ -19,6 +19,7 @@
 // Units: FlexDB stores lengths in 1/10000 mm; everything here is millimetres.
 // Link: ComponentDB Compo.PkgTypeID == Library Compo.CompoID.
 // ============================================================================
+#include "machine_history.h"
 #include "jet_write.h"
 #include "../core/project.h"
 #include <functional>
@@ -95,6 +96,10 @@ class ComponentDB {
 public:
     bool open(const std::string& path, std::string& err);
     bool create_from_template(const std::string& template_path, std::string& err);
+    // New, empty component database from ANY FlexLine database (template not needed): every component table is
+    // emptied; reference data (FeederType, Lookup, PkgClass, VacuumDflt, FlexDBInfo, WriteLockInfo) and the default
+    // rows (Side 1, CoplaGX4 default) are kept. The source file is only read. Unsaved until save().
+    bool create_empty_from(const std::string& any_flexline_db, std::string& err);
     bool save(const std::string& path, std::string& err);   // stores touched tables, writes file
     bool is_open() const { return open_; }
     const std::string& path() const { return path_; }
@@ -106,7 +111,10 @@ public:
     int add_part(const std::string& machine_name, const std::string& desc, const std::string& ext_name, std::string& err);
     bool set_description(int compo_id, const std::string& desc, std::string& err);
     bool apply_profile(int compo_id, const Library& lib, int profile_id, int cls_override, bool copy_dims, std::string& err);
-    bool set_tape(int compo_id, bool paper, std::string& err);   // Feeder.TapeTypeID 1/2 + Expansion.AutoTeach 1/0
+    bool set_tape(int compo_id, bool paper, std::string& err);
+    // write a machine-history proposal over an applied profile: Compo Width/Length/Height (body),
+    // Feeder TapeTypeID/Pitch, Laser.GX4NozzleNo + LaserFx3.NozzleNo. Fields that are 0 are left alone.
+    bool apply_machine(int compo_id, const history::Proposal& p, std::string& err);   // Feeder.TapeTypeID 1/2 + Expansion.AutoTeach 1/0
     jet::ETable* table(const std::string& name, std::string* err = nullptr);   // lazy load
     jet::Editor& editor() { return ed_; }
 
@@ -148,6 +156,17 @@ struct Guess {
     int gap_cls = 0;
     std::string gap_label;
 };
+
+// Profile chosen from the body (l >= w, mm), carrier and nozzle, scored against every library profile:
+// log-size distance + height, tape-type mismatch, package-class / family-word / chip-size / nozzle-in-name agreement.
+struct BodyPick { int pid = 0; double cost = 1e9; std::string why; };
+// owned: nozzles the shop has (empty = any); profiles that need another nozzle are pushed far down
+BodyPick pick_by_body(const Library& lib, const std::string& desc, double l, double w, double h, int tape_type, int nozzle,
+                      const std::set<int>* owned = nullptr, int pins = 0);
+// library profile named after a package code ("SOD123", "SOD-123", "SOT23-5"); owned nozzle and house use break ties
+int profile_for_code(const Library& lib, const std::vector<std::string>& aliases, const std::set<int>* owned, const std::map<int, int>* used);
+// same body / class / carrier as pid but with a nozzle the shop owns (pid itself when it is fine, 0 if none)
+int owned_twin(const Library& lib, int pid, const std::set<int>& owned);
 
 class Classifier {
 public:
@@ -230,5 +249,21 @@ struct Readiness {
     std::vector<std::string> attention;   // untaught / conflict part numbers (first few)
     int open() const { return untaught + conflict; }
 };
+
+// One-shot teaching for a part: FlexLine profile + body + carrier + nozzle.
+// Profile: house-trained text classifier when it is sure (conf >= 0.9), otherwise the body pick.
+// Profile: house-trained text classifier when sure, else a library profile named after the package code
+// (SOD123 ...), else the closest body; every pick is moved onto a nozzle the shop owns. Body comes from the
+// part's machine history, its .cpf body, the package code / IPC land-pattern name, the footprint, or the
+// land-pattern extent; height is estimated when nothing measured it. Always returns a pick when any size is known.
+struct Teach {
+    int pid = 0;
+    double conf = 0;               // for optional review only
+    std::string profile_route;     // "text 0.95: ..." / "package SOD123" / "body: ..."
+    history::Proposal machine;
+};
+Teach teach_part(const Classifier& cls, const Library& lib, const history::History& hist, const std::string& name, const std::string& desc,
+                 double ext_l, double ext_w, bool use_part_history = true, const std::string& pkg_name = std::string(),
+                 double fp_body_l = 0, double fp_body_w = 0);
 
 } // namespace pcbp::flexdb

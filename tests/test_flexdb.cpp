@@ -8,6 +8,7 @@
 #include "local_data.h"
 #include "../src/io/flexdb.h"
 #include "../src/io/jet_mdb.h"
+#include "../src/io/jet_write.h"
 #include "../src/core/fileio.h"
 #include "../src/plugins/plugin.h"
 #include "pcbp_plugin.h"
@@ -319,6 +320,49 @@ static void test_names_and_tape(Library& lib) {
     auto ps = r.parts();
     CHECK(ps.size() == 2);
     if (ps.size() == 2) CHECK(ps[0].ext_name == "CRCW04021K00FKED-EXTRA-LONG");
+
+    // growing a new DB appends pages past the template's end; page 1 marks those free until claimed.
+    // Unclaimed, the Jet engine reuses them and overwrites Compo (seen after FlexLine opened an export).
+    {
+        ComponentDB g;
+        CHECK(g.create_from_template(empty, err));
+        for (int i = 0; i < 300; ++i) {
+            char nm[24]; std::snprintf(nm, sizeof nm, "GROW%04d", i);
+            int gid = g.add_part(nm, "CAP CER 0.1UF 50V X7R 0603", "", err);
+            CHECK(gid > 0);
+            if (gid > 0 && i % 3 == 0) CHECK(g.apply_profile(gid, lib, pp->id, 0, true, err));
+        }
+        const std::string gout = TMP + "grow.mdb";
+        CHECK(g.save(gout, err));
+        jet::Editor e;
+        CHECK(e.open(gout, err));
+        CHECK(e.pages_wrongly_free() == 0);
+        jet::Editor t;
+        CHECK(t.open(empty, err) && t.pages_wrongly_free() == 0);
+    }
+    // no template: a new, empty DB from any FlexLine DB (here the house DB; the source is never written)
+    const std::string house = pcbp_test::local("part_db");
+    if (exists(house)) {
+        ComponentDB n;
+        CHECK(n.create_empty_from(house, err));
+        CHECK(n.parts().empty());
+        int nid = n.add_part("NEWPART-1", "CAP CER 0.1UF 50V X7R 0603", "", err);
+        CHECK(nid == 1);
+        CHECK(n.apply_profile(nid, lib, pp->id, 0, true, err));
+        const std::string nout = TMP + "notemplate.mdb";
+        CHECK(n.save(nout, err));
+        jet::Editor e;
+        CHECK(e.open(nout, err));
+        CHECK(e.pages_wrongly_free() == 0);
+        auto rows_of = [&](const char* t) { jet::ETable x; return e.load(t, x, err) ? x.rows.size() : (size_t)-1; };
+        CHECK(rows_of("Compo") == 1);
+        CHECK(rows_of("Side") >= 1);   // default row + the library lookups apply_profile copies
+        CHECK(rows_of("PkgClass") > 0 && rows_of("FeederType") > 0 && rows_of("Lookup") > 0 && rows_of("VacuumDflt") > 0);
+        CHECK(rows_of("FlexDBInfo") == 1 && rows_of("WriteLockInfo") == 1);
+        CHECK(rows_of("LightPattern") == 0 && rows_of("ElemLoc") == 0 && rows_of("Manuftr") == 0);
+        ComponentDB src;   // source untouched
+        CHECK(src.open(house, err) && src.parts().size() > 1000);
+    }
 }
 
 // ---------------------------------------------------------------------------

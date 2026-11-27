@@ -307,6 +307,18 @@ void render_board(ID2D1RenderTarget* rt, const Doc& d, const BoardRenderOpts& o)
                         br->SetColor(d2c(pk->smt ? pl.pad_smt : pl.pad_th, alpha));
                         for (auto& pad : pk->pads) pad_shape(rt, pad, br.get());
                     }
+                    // R26: orient_markers 2 = every placement's pin-1 pad (placement override, else the pad numbered 1),
+                    // whether or not the package carries a polarity marker
+                    if (o.orient_markers >= 2 && pk) {
+                        const int i1 = c.pin1_set ? c.pin1_index : pkg_pin1(*pk);
+                        if (i1 >= 0 && i1 < (int)pk->pads.size()) {
+                            const Pad& p1 = pk->pads[i1];
+                            br->SetColor(d2c(0xFFE0218A, alpha));
+                            pad_shape(rt, p1, br.get());
+                            const float rr = std::max((float)std::max(p1.w, p1.h) * 0.8f, hair * 5.f);
+                            rt->DrawEllipse(D2D1::Ellipse(D2D1::Point2F((float)p1.pos.x, (float)p1.pos.y), rr, rr), br.get(), hair * 1.8f);
+                        }
+                    }
                     br->SetColor(d2c(col, alpha));
                     if (pk && !pk->body.empty()) for (auto& g : pk->body) draw_gprim(rt, g, br.get(), hair * 1.2f, false);
                     else rt->DrawRectangle(D2D1::RectF((float)e.x0, (float)e.y0, (float)e.x1, (float)e.y1), br.get(), hair * 1.2f);

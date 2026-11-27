@@ -251,6 +251,24 @@ float4 main(uint id : SV_VertexID) : SV_Position {
     return float4(p * float2(2, -2) + float2(-1, 1), 0, 1);
 }
 )";
+const char* kVSImage = R"(
+struct VI { float2 pos : POSITION; float2 uv : TEXCOORD0; };
+struct VO { float4 pos : SV_Position; float2 uv : TEXCOORD0; };
+VO main(VI i) { VO o; o.pos = float4(i.pos, 0, 1); o.uv = i.uv; return o; }
+)";
+const char* kPSImage = R"(
+Texture2D img : register(t0);
+SamplerState smp : register(s0);
+cbuffer C : register(b0) { float4 tint; float4 prm; };   // prm = (threshold, invert, alpha, 0)
+float4 main(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target {
+    float4 c = img.Sample(smp, uv);
+    if (prm.x < 0) return c * prm.z;                       // premultiplied BGRA as it is
+    float l = dot(c.rgb, float3(0.299, 0.587, 0.114)) / max(c.a, 1e-4);
+    float on = l >= prm.x ? 1 : 0;
+    if (prm.y > 0.5) on = 1 - on;
+    return float4(tint.rgb * on, 1) * prm.z;               // black where off: neutral under a screen blend
+}
+)";
 const char* kPSComp = R"(
 Texture2D cov0 : register(t0);
 Texture2D cov1 : register(t1);
@@ -523,10 +541,13 @@ std::shared_ptr<LayerMesh> build_mesh(const gb::Layer& L, const std::vector<int>
 struct Renderer::Impl {
     bool ok = false;
     UINT msaa = 1;
-    Com<ID3D11VertexShader> vs_flash, vs_caps, vs_full;
-    Com<ID3D11PixelShader> ps_one, ps_caps, ps_comp;
-    Com<ID3D11InputLayout> il_flash, il_caps;
-    Com<ID3D11BlendState> bl_dark, bl_clear, bl_none, bl_comp;
+    Com<ID3D11VertexShader> vs_flash, vs_caps, vs_full, vs_img;
+    Com<ID3D11PixelShader> ps_one, ps_caps, ps_comp, ps_img;
+    Com<ID3D11InputLayout> il_flash, il_caps, il_img;
+    Com<ID3D11BlendState> bl_dark, bl_clear, bl_none, bl_comp, bl_screen;
+    Com<ID3D11SamplerState> smp_lin;
+    Com<ID3D11Buffer> vb_img;   // dynamic image grid
+    UINT vb_img_cap = 0;
     Com<ID3D11DepthStencilState> ds_off, ds_inv, ds_cover;
     Com<ID3D11RasterizerState> rs;
     Com<ID3D11Buffer> cb, cbc, vb_corner, vb_quad;
@@ -547,7 +568,7 @@ struct Renderer::Impl {
     bool targets(int W, int H);
     void cb_set(const Xform& M, float px, float tscale, float sketch, float filter);
     void coverage(LayerMesh& m, const Xform& xf, int target, int filter, bool sketch);
-    void composite(int mode, bool neg, const float* c1, const float* c2, const float* c3, float fill_alpha);
+    void composite(int mode, bool neg, const float* c1, const float* c2, const float* c3, float fill_alpha, bool screen = false);
 };
 
 namespace {
@@ -611,6 +632,26 @@ bool Renderer::init(std::string& err) {
     blend(D3D11_BLEND_ZERO, D3D11_BLEND_INV_SRC_COLOR, D3D11_BLEND_ZERO, D3D11_BLEND_INV_SRC_ALPHA, D3D11_COLOR_WRITE_ENABLE_ALL, I.bl_clear);
     blend(D3D11_BLEND_ONE, D3D11_BLEND_ZERO, D3D11_BLEND_ONE, D3D11_BLEND_ZERO, 0, I.bl_none);
     blend(D3D11_BLEND_ONE, D3D11_BLEND_INV_SRC_ALPHA, D3D11_BLEND_ONE, D3D11_BLEND_INV_SRC_ALPHA, D3D11_COLOR_WRITE_ENABLE_ALL, I.bl_comp);
+    // screen: dst + src - src * dst (premultiplied src)
+    blend(D3D11_BLEND_ONE, D3D11_BLEND_INV_SRC_COLOR, D3D11_BLEND_ONE, D3D11_BLEND_INV_SRC_ALPHA, D3D11_COLOR_WRITE_ENABLE_ALL, I.bl_screen);
+    {   // image pass (board scans)
+        Com<ID3DBlob> b_vi, b_pi;
+        std::string e2;
+        if (compile(kVSImage, "vs_4_0", b_vi, e2) && compile(kPSImage, "ps_4_0", b_pi, e2)) {
+            dev->CreateVertexShader(b_vi->GetBufferPointer(), b_vi->GetBufferSize(), nullptr, I.vs_img.put());
+            dev->CreatePixelShader(b_pi->GetBufferPointer(), b_pi->GetBufferSize(), nullptr, I.ps_img.put());
+            D3D11_INPUT_ELEMENT_DESC ili[] = {
+                {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+                {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            };
+            dev->CreateInputLayout(ili, 2, b_vi->GetBufferPointer(), b_vi->GetBufferSize(), I.il_img.put());
+        }
+        D3D11_SAMPLER_DESC sd{};
+        sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+        sd.AddressU = sd.AddressV = sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+        sd.MaxLOD = D3D11_FLOAT32_MAX;
+        dev->CreateSamplerState(&sd, I.smp_lin.put());
+    }
     D3D11_DEPTH_STENCIL_DESC dd{};
     dev->CreateDepthStencilState(&dd, I.ds_off.put());
     dd.StencilEnable = TRUE; dd.StencilReadMask = 0xFF; dd.StencilWriteMask = 0xFF;
@@ -813,12 +854,12 @@ void Renderer::Impl::coverage(LayerMesh& m, const Xform& xf, int target, int fil
     if (msaa > 1) ctx->ResolveSubresource(cov_tex[target].get(), 0, cov_ms_tex.get(), 0, DXGI_FORMAT_R8_UNORM);
 }
 
-void Renderer::Impl::composite(int mode, bool neg, const float* c1, const float* c2, const float* c3, float fill_alpha) {
+void Renderer::Impl::composite(int mode, bool neg, const float* c1, const float* c2, const float* c3, float fill_alpha, bool screen) {
     ID3D11DeviceContext* ctx = gfx_context();
     ID3D11RenderTargetView* rtv = color_rtv.get();
     ctx->OMSetRenderTargets(1, &rtv, nullptr);
     const float bf[4] = {0, 0, 0, 0};
-    ctx->OMSetBlendState(bl_comp.get(), bf, 0xffffffff);
+    ctx->OMSetBlendState(screen && bl_screen ? bl_screen.get() : bl_comp.get(), bf, 0xffffffff);
     ctx->OMSetDepthStencilState(ds_off.get(), 0);
     D3D11_MAPPED_SUBRESOURCE ms;
     if (SUCCEEDED(ctx->Map(cbc.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &ms))) {
@@ -842,13 +883,77 @@ void Renderer::Impl::composite(int mode, bool neg, const float* c1, const float*
     ctx->PSSetConstantBuffers(0, 1, cbs);
 }
 
-void Renderer::draw_layer(LayerMesh& m, const Xform& xf, uint32_t argb, float alpha, FillMode mode, bool negative) {
+void Renderer::draw_layer(LayerMesh& m, const Xform& xf, uint32_t argb, float alpha, FillMode mode, bool negative, bool screen) {
     Impl& I = *p_;
     if (!I.ok) return;
     I.coverage(m, xf, 0, -1, mode == FillMode::Sketch);
     float c[4];
     premul(argb, alpha, c);
-    I.composite(mode == FillMode::Solid ? 0 : 1, negative, c, nullptr, nullptr, mode == FillMode::Solid ? 1.f : 0.12f);
+    I.composite(mode == FillMode::Solid ? 0 : 1, negative, c, nullptr, nullptr, mode == FillMode::Solid ? 1.f : 0.12f, screen);
+}
+
+void Renderer::draw_image(void* srv_, const Vec2* grid, int n, uint32_t tint, float alpha, float threshold, bool invert, bool screen) {
+    Impl& I = *p_;
+    if (!I.ok || !srv_ || !grid || n < 1 || !I.vs_img || !I.ps_img || !I.il_img) return;
+    ID3D11Device* dev = gfx_device();
+    ID3D11DeviceContext* ctx = gfx_context();
+    // world -> NDC, as the layers
+    const double sx = I.view.mirror ? -I.view.scale : I.view.scale;
+    const double sy = I.view.mirror_y ? -I.view.scale : I.view.scale;
+    const Xform V = Xform::scale(2.0 / I.w, 2.0 / I.h) * Xform::scale(sx, sy) * Xform::rotation(I.view.rot) * Xform::translate(-I.view.cx, -I.view.cy);
+    struct VI { float x, y, u, v; };
+    std::vector<VI> vs;
+    vs.reserve((size_t)n * n * 6);
+    auto at = [&](int i, int j) {
+        const Vec2 p = V.apply(grid[(size_t)j * (n + 1) + i]);
+        return VI{(float)p.x, (float)p.y, (float)i / n, (float)j / n};
+    };
+    for (int j = 0; j < n; ++j)
+        for (int i = 0; i < n; ++i) {
+            const VI a = at(i, j), b = at(i + 1, j), c = at(i, j + 1), d = at(i + 1, j + 1);
+            for (const VI& v : {a, b, c, c, b, d}) vs.push_back(v);
+        }
+    const UINT bytes = (UINT)(vs.size() * sizeof(VI));
+    if (!I.vb_img || I.vb_img_cap < bytes) {
+        D3D11_BUFFER_DESC bd{};
+        bd.ByteWidth = bytes; bd.Usage = D3D11_USAGE_DYNAMIC; bd.BindFlags = D3D11_BIND_VERTEX_BUFFER; bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        I.vb_img.reset();
+        if (FAILED(dev->CreateBuffer(&bd, nullptr, I.vb_img.put()))) return;
+        I.vb_img_cap = bytes;
+    }
+    D3D11_MAPPED_SUBRESOURCE ms;
+    if (FAILED(ctx->Map(I.vb_img.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &ms))) return;
+    std::memcpy(ms.pData, vs.data(), bytes);
+    ctx->Unmap(I.vb_img.get(), 0);
+    if (SUCCEEDED(ctx->Map(I.cbc.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &ms))) {
+        float d[16] = {((tint >> 16) & 255) / 255.f, ((tint >> 8) & 255) / 255.f, (tint & 255) / 255.f, 1, threshold, invert ? 1.f : 0.f, alpha, 0};
+        std::memcpy(ms.pData, d, sizeof d);
+        ctx->Unmap(I.cbc.get(), 0);
+    }
+    ID3D11RenderTargetView* rtv = I.color_rtv.get();
+    ctx->OMSetRenderTargets(1, &rtv, nullptr);
+    const float bf[4] = {0, 0, 0, 0};
+    ctx->OMSetBlendState(screen ? I.bl_screen.get() : I.bl_comp.get(), bf, 0xffffffff);
+    ctx->OMSetDepthStencilState(I.ds_off.get(), 0);
+    ID3D11Buffer* cbs[1] = {I.cbc.get()};
+    ctx->PSSetConstantBuffers(0, 1, cbs);
+    ID3D11ShaderResourceView* srv = (ID3D11ShaderResourceView*)srv_;
+    ctx->PSSetShaderResources(0, 1, &srv);
+    ID3D11SamplerState* sm = I.smp_lin.get();
+    ctx->PSSetSamplers(0, 1, &sm);
+    const UINT stride = sizeof(VI), off = 0;
+    ID3D11Buffer* vb = I.vb_img.get();
+    ctx->IASetVertexBuffers(0, 1, &vb, &stride, &off);
+    ctx->IASetInputLayout(I.il_img.get());
+    ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    ctx->VSSetShader(I.vs_img.get(), nullptr, 0);
+    ctx->PSSetShader(I.ps_img.get(), nullptr, 0);
+    ctx->Draw((UINT)vs.size(), 0);
+    ID3D11ShaderResourceView* nul = nullptr;
+    ctx->PSSetShaderResources(0, 1, &nul);
+    cbs[0] = I.cb.get();
+    ctx->PSSetConstantBuffers(0, 1, cbs);
+    ctx->VSSetConstantBuffers(0, 1, cbs);
 }
 
 void Renderer::draw_compare(LayerMesh& a, const Xform& xa, LayerMesh& b, const Xform& xb, uint32_t ca, uint32_t cbb, uint32_t cc) {

@@ -23,6 +23,18 @@
 
 namespace pcbp {
 
+// R25: the point of a component that is exported, in root board coordinates: the package's placement point (centre
+// of its lands) carried through the component's own position, rotation and side; the footprint origin when the setup asks
+// for it or there is no package.
+static Vec2 place_point(const Project& prj, const Component& c, const Package* pk, const MachineSetup& ms) {
+    if (ms.place_at_origin || !pk || c.feature != Feature::Component) return c.pos;
+    const Vec2 o = pkg_place_offset(*pk);
+    if (o.x == 0 && o.y == 0) return c.pos;
+    Xform t = Xform::translate(c.pos.x, c.pos.y) * Xform::rotation(c.rot);
+    if (c.side == Side::Bottom) t = t * Xform::scale(-1, 1);   // as Project::comp_xform(): mirrored footprint
+    return t.apply(o);
+}
+
 static Vec2 xf_point(Vec2 p, const MachineSetup& ms, Vec2 origin) {
     p = p - origin;
     if (ms.flipped) p.x = -p.x;
@@ -243,12 +255,14 @@ bool build_machine_job(const Project& prj, int point_index, MachineJob& job, std
         for (int im : imgs) {
             JobPlacement p;
             p.ref = c.ref;
-            p.part = c.number.empty() ? c.package : c.number;
+            // a reference without a part number stays blank: the package name is not a component ("???" from the
+            // BOM is a real part number and is kept as such)
+            p.part = c.number;
             p.package = pk ? pk->name : c.package;
             p.description = pn ? pn->description : std::string();
             // One coordinate set and one rotation: use_cad_coords / force_angle_calc and any
             // legacy machine angle are kept only so legacy projects round-trip (ANGLES.md §5).
-            const Vec2 q = xf_point(prj.image_xform(im).apply(c.pos), ms, origin);
+            const Vec2 q = xf_point(prj.image_xform(im).apply(place_point(prj, c, pk, ms)), ms, origin);   // R25: centre of the lands, not the footprint origin
             p.x = q.x; p.y = q.y;
             p.rot = export_angle(prj, c, im, ms);
             p.pre_rot = c.pre_rotation;
@@ -292,6 +306,7 @@ bool build_machine_job(const Project& prj, int point_index, MachineJob& job, std
             }
             const char* hsrc = pn && pn->height > 0 ? "part" : (pk && pk->height > 0 ? "package" : "");
             job.placements.push_back(p);
+            if (p.part.empty()) continue;   // placed with no component record
 
             JobPart& jp = parts[p.part];
             if (jp.part.empty()) {
@@ -380,7 +395,10 @@ bool trace_placement(const Project& prj, int point_index, size_t ci, int im, Pla
     add("4 Physical side", std::string(c.side == Side::Bottom ? "Bottom" : "Top") + "; setup programs " +
         (ms.side == Side::Bottom ? "Bottom" : "Top") + (ms.flipped ? ", flipped" : ""));
     const PanelImage& pi = prj.images[im];
-    const Vec2 bp = prj.image_xform(im).apply(c.pos);
+    const Package* tpk = prj.package_of(c);
+    const Vec2 pp = place_point(prj, c, tpk, ms);
+    if (pp.x != c.pos.x || pp.y != c.pos.y) { const Vec2 o = pkg_place_offset(*tpk); add("4b Land centre", "package " + c.package + " has its lands centred " + fxy(o) + " from its origin -> " + fxy(prj.to_user(pp))); }
+    const Vec2 bp = prj.image_xform(im).apply(pp);
     add("5 Panel image", std::to_string(im + 1) + " offset " + fxy(pi.offset) + " rot " + fdeg(pi.rot) + " -> " +
         fxy(prj.to_user(bp)) + "  rot " + fdeg(norm_deg(c.rot + pi.rot)));
     add("6 Export origin", std::string(ms.has_origin ? "machine origin " : "virtual origin ") + fxy(origin));

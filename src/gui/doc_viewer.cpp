@@ -34,6 +34,7 @@
 #include <cmath>
 #include <cstring>
 #include <map>
+#include <cctype>
 
 namespace pcbp::gui {
 

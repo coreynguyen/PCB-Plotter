@@ -2,6 +2,7 @@
 // ipc356.cpp — IPC-D-356(A) netlist import. See ipc356.h.
 // ============================================================================
 #include "ipc356.h"
+#include "../core/footprint_canon.h"
 #include "io_util.h"
 #include <algorithm>
 #include <cctype>
@@ -165,6 +166,54 @@ bool import_ipc356_text(const std::string& text, Project& prj, const Ipc356Optio
             if (p->access < 2) all_bottom = false;
         }
         Side side = (!th && all_bottom) ? Side::Bottom : Side::Top;
+        if (opt.normalise_rotation) {   // R26: rotation goes to the placement, the package is axis-aligned
+            std::vector<const Ipc356Pin*> sorted = g;
+            std::stable_sort(sorted.begin(), sorted.end(), [](auto* a, auto* b) { return ref_less(a->pin, b->pin); });
+            std::vector<BoardPad> bp;
+            int ord = 0;
+            for (auto* p : sorted) {
+                BoardPad q;
+                q.pos = p->pos; q.w = p->w; q.h = p->h; q.rot = p->rot; q.drill = p->drill;
+                q.shape = p->drill > 0 && std::fabs(p->w - p->h) < 1e-6 ? PadShape::Round : PadShape::Rect;
+                ++ord;
+                const bool numeric = !p->pin.empty() && std::all_of(p->pin.begin(), p->pin.end(), [](char ch) { return std::isdigit((unsigned char)ch); });
+                q.pin = numeric ? std::atoi(p->pin.c_str()) : ord;
+                q.pin1 = is_pin1(p->pin);
+                bp.push_back(q);
+            }
+            const CanonFootprint cf = canon_footprint(bp, side);
+            Package pk;
+            pk.smt = !th;
+            pk.pads = cf.pads;
+            pk.leads = (int)pk.pads.size();
+            pk.auto_body();
+            std::string name;
+            if (opt.dedupe_packages)
+                for (auto& kv : sig2pkg) {   // tolerant compare (off-axis source coordinates round differently)
+                    const Package& o = prj.packages[kv.second];
+                    if (o.smt == pk.smt && same_pad_pattern(o.pads, pk.pads)) { name = kv.second; break; }
+                }
+            if (name.empty()) {
+                name = "IPC356_" + std::to_string(pk.pads.size()) + "P_" + std::to_string(++pkg_seq);
+                pk.name = name;
+                pk.description = "Built from IPC-D-356 pads of " + g[0]->ref;
+                prj.packages[name] = pk;
+                sig2pkg[name] = name;
+                ++res.packages;
+            }
+            Component cm;
+            cm.ref = g[0]->ref;
+            cm.pos = cf.pos;
+            cm.rot = cm.rot_imported = cf.rot;
+            cm.side = side;
+            cm.package = name;
+            const bool flagged = std::any_of(bp.begin(), bp.end(), [](const BoardPad& q) { return q.pin1; });
+            if (flagged && cf.pin1 >= 0) { cm.pin1_set = true; cm.pin1_index = cf.pin1; }
+            cm.cad_pos = cm.pos;
+            prj.add_component(cm);
+            ++res.components;
+            continue;
+        }
         BBox bb;
         for (auto* p : g) {
             const double r = deg2rad(p->rot), cs = std::fabs(std::cos(r)), sn = std::fabs(std::sin(r));

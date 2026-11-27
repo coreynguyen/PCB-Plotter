@@ -9,6 +9,7 @@
 #include <cstring>
 #include <numeric>
 #include <set>
+#include <cmath>
 
 namespace pcbp::sheet {
 
@@ -27,7 +28,7 @@ static uint64_t style_hash(const Style& s) {
     uint64_t h = 1469598103934665603ull;
     auto mix = [&](uint64_t v) { h ^= v; h *= 1099511628211ull; };
     for (char ch : s.font.name) mix((unsigned char)ch);
-    mix((uint64_t)(s.font.size * 100)); mix(s.font.bold | s.font.italic << 1 | s.font.strike << 2 | (int)s.font.underline << 3); mix(s.font.color);
+    mix((uint64_t)(s.font.size * 100)); mix((uint64_t)((int)s.font.bold | (int)s.font.italic << 1 | (int)s.font.strike << 2 | (int)s.font.underline << 3)); mix(s.font.color);
     mix((int)s.fill.pattern); mix(s.fill.fg); mix(s.fill.bg);
     for (const BorderSide* b : {&s.border.left, &s.border.right, &s.border.top, &s.border.bottom, &s.border.diagonal}) { mix((int)b->style); mix(b->color); }
     for (char ch : s.numfmt) mix((unsigned char)ch);

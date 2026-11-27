@@ -22,3 +22,20 @@ tools/vm/
 
 # third-party sample of unconfirmed license (local only)
 tests/data/gerber/kicad10/
+# blobs extracted from third-party CAM databases (tools/cc_extract_blobs.py) - local only; test_cc_archive skips without them
+tests/data/*.bin
+tests/data/index.tsv
+# reverse-engineering scripts for third-party binaries / databases - local only
+tools/cc_blob_dump.py
+tools/cc_extract_blobs.py
+tools/gen_ui_inventory.py
+tools/res_dump.py
+tools/res_images.py
+tools/res_render.py
+tools/res_survey.py
+tools/rtclass.py
+tools/msgmap.py
+tools/clsid_map.py
+tools/find_idarrays.py
+# site-specific harvest tool (machine share names, drive mappings)
+tools/pnp_harvest.cpp

@@ -278,12 +278,16 @@ int main(int argc, char** argv) {
     PluginRegistry r;
     register_builtin_plugins(r);
     test_registry(r);
-    test_cpf(r);
-    Project demo;
-    build_demo(r, demo);
-    test_machine(r, demo);
-    test_project_exporters(r, demo);
-    if (argc > 1) test_sample(argv[1], demo);
+    if (kRoot.empty()) {
+        std::printf("SKIP cpf/demo/machine/exporter tests: legacy_demo_root not mapped (tests/local_data.map)\n");
+    } else {
+        test_cpf(r);
+        Project demo;
+        build_demo(r, demo);
+        test_machine(r, demo);
+        test_project_exporters(r, demo);
+        if (argc > 1) test_sample(argv[1], demo);
+    }
     std::printf("\n%d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

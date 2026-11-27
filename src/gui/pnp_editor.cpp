@@ -31,6 +31,7 @@
 #include <ctime>
 #include <map>
 #include <set>
+#include <cctype>
 
 namespace pcbp::app { extern bool g_quiet_import; }
 

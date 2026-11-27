@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <fstream>
 
-namespace pcbp::gui { int run_app(int show); int migrate_cli_main(const std::vector<std::wstring>& args); }
+namespace pcbp::gui { int run_app(int show); int migrate_cli_main(const std::vector<std::wstring>& args); int recentre_cli_main(const std::vector<std::wstring>& args); }
 namespace pcbp::app { extern bool g_quiet_import; }
 using namespace pcbp;
 namespace pcbp::gui { bool import_auto(const std::wstring& path); int assoc_cli(const std::vector<std::wstring>& args); bool gerber_dialog_drop(const std::vector<std::wstring>&); }
@@ -99,6 +99,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int show) {
     for (int i = 1; argv && i < argc; ++i) args.push_back(argv[i]);
     if (argv) LocalFree(argv);
     if (!args.empty() && args[0] == L"--migrate") { int rc = gui::migrate_cli_main(args); CoUninitialize(); return rc; }   // headless batch
+    if (!args.empty() && args[0] == L"--recentre") { int rc = gui::recentre_cli_main(args); CoUninitialize(); return rc; }   // R25 headless: placements to the centre of the lands
     if (int rc = gui::assoc_cli(args); rc >= 0) { CoUninitialize(); return rc; }   // --register / --unregister
     if (platform::forward_to_running_instance(args, L"PCBPlotter2")) { CoUninitialize(); return 0; }
     app::settings().load();
